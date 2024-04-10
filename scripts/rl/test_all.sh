@@ -68,14 +68,8 @@ MODE=easy
 #     --use_gym
 # done
 
-# for iter in 120000 140000
-# do
-# python3 main.py --use_gym --config config/tasks/Nav/easy/algo/a2ctest.yaml --exp easy_a2c_test_${iter} \
-#     --checkpoint_path checkpoints/easy_a2c_${iter}_steps.zip
-# done
-
-for iter in 40000 80000 260000
+for iter in 2000 3000
 do
-python3 main.py --use_gym --config config/tasks/Nav/medium/algo/a2ctest.yaml --exp medium_a2c_test_${iter} \
-    --checkpoint_path checkpoints/medium_a2c_${iter}_steps.zip
+python3 main.py --use_gym --config config/tasks/Nav/easy/algo/hritest.yaml --exp easy_hri_test_${iter} \
+    --checkpoint_path checkpoints/final_models/easy/hri_${iter}
 done

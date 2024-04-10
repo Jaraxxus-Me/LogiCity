@@ -40,7 +40,7 @@ stable_baselines:
       tgt_arity: 1
       predicates_labels: ['CollidingClose', 'HigherPri', 'IsAmbulance', 'IsAtInter', 'IsBus', 'IsCar', 'IsClose', 'IsInInter', 'IsOld', 'IsPedestrian', 'IsPolice', 'LeftOf', 'NextTo', 'Normal', 'RightOf', 'Stop', 'ident']
   hyperparameters:
-    symbolic_eval: false # Whether to use symbolic evaluation, determined by the eva acc
+    symbolic_eval: true # Whether to use symbolic evaluation, determined by the eva acc
     tgt_action: ['Stop']
     default_action: 'Normal'
     threshold: 0.5

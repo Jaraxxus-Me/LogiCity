@@ -21,6 +21,7 @@ class ASTAR_G:
     def __init__(self, movable_map, midline_matrix, offset):
         self.road_offset = offset
         self.movable_map = movable_map
+        self.permitted_sg = torch.zeros_like(movable_map)
         self.midroad_segments = find_midroad_segments(midline_matrix)
         self.build_graph(self.midroad_segments)
 
@@ -44,6 +45,9 @@ class ASTAR_G:
                 self.G.add_edge(tuple(top_s.tolist()), tuple(top_e.tolist()), weight=g_value(top_s.float(), top_e.float()).item())
                 self.start_lists.append(top_s.unsqueeze(0))
                 self.end_lists.append(top_e.unsqueeze(0))
+                # draw two lines on the permited_sg
+                self.permitted_sg[bottom_s[0]:bottom_e[0]+1, bottom_s[1]:bottom_e[1]+1] = 1
+                self.permitted_sg[top_s[0]:top_e[0]+1, top_s[1]:top_e[1]+1] = 1
             elif mid_start[1] == mid_end[1]:
                 assert mid_end[0] > mid_start[0]
                 # vertical mid line
@@ -57,6 +61,9 @@ class ASTAR_G:
                 self.G.add_edge(tuple(right_s.tolist()), tuple(right_e.tolist()), weight=g_value(right_s.float(), right_e.float()).item())
                 self.start_lists.append(right_s.unsqueeze(0))
                 self.end_lists.append(right_e.unsqueeze(0))
+                # draw two lines on the permited_sg
+                self.permitted_sg[left_s[0]:left_e[0]+1, left_s[1]:left_e[1]+1] = 1
+                self.permitted_sg[right_s[0]:right_e[0]+1, right_s[1]:right_e[1]+1] = 1
         
         # Connect each end point to other start points (this only happens in intersections)
         # save road graph nodes for future use

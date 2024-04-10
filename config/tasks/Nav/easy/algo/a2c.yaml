@@ -1,10 +1,10 @@
 # General simulation settings
 simulation:
   map_yaml_file: "config/maps/square_5x5.yaml"       # OpenAI Gym environment name
-  agent_yaml_file: "config/agents/medium/train.yaml" # Agents in the simulation
-  ontology_yaml_file: "config/rules/ontology_medium.yaml" # Ontology of the simulation
+  agent_yaml_file: "config/agents/easy/train.yaml" # Agents in the simulation
+  ontology_yaml_file: "config/rules/ontology_easy.yaml" # Ontology of the simulation
   rule_type: "Z3_Expert"               # z3 rl will set the rl_agent with fixed number of other entities, return the groundings as obs, and return the rule reward
-  rule_yaml_file: "config/rules/Nav/medium/expert.yaml"                    # Whether to render the environment
+  rule_yaml_file: "config/rules/Nav/easy/expert.yaml"                    # Whether to render the environment
   rl: true
   debug: false
   use_multi: false
@@ -28,8 +28,8 @@ simulation:
       2: -2
       3: -5
     reset_dist:
-      concepts: ['ambulance', 'tiro', 'bus', 'normal']
-      prob: [0.25, 0.25, 0.25, 0.25]
+      concepts: ['ambulance', 'tiro', 'normal']
+      prob: [0.25, 0.25, 0.5]
     overtime_cost: -12
 
 eval_checkpoint:
@@ -37,10 +37,10 @@ eval_checkpoint:
   save_freq: 10000
   simulation_config:
     map_yaml_file: "config/maps/square_5x5.yaml"       # OpenAI Gym environment name
-    agent_yaml_file: "config/agents/medium/val.yaml" # Agents in the simulation
-    ontology_yaml_file: "config/rules/ontology_medium.yaml" # Ontology of the simulation
+    agent_yaml_file: "config/agents/easy/val.yaml" # Agents in the simulation
+    ontology_yaml_file: "config/rules/ontology_easy.yaml" # Ontology of the simulation
     rule_type: "Z3_Expert"               # z3 rl will set the rl_agent with fixed number of other entities, return the groundings as obs, and return the rule reward
-    rule_yaml_file: "config/rules/Nav/medium/expert.yaml"                    # Whether to render the environment
+    rule_yaml_file: "config/rules/Nav/easy/expert.yaml"                    # Whether to render the environment
     rl: true
     debug: false
     use_multi: false
@@ -49,7 +49,7 @@ eval_checkpoint:
       max_priority: 8
       use_expert: true
       agent_name: "Car_1"               # ID of the RL agent, this is the agent id in the agent yaml file
-      max_horizon: 1000                          # Maximum steps in each episode 
+      max_horizon: 10000                          # Maximum steps in each episode 
       action_space: 4                       # Number of discrete actions, 4 means slow/normal/fast/stop
       action_mapping:                       # Mapping from policy action index to actual action space, see /agent folder
         0: [1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
@@ -64,8 +64,8 @@ eval_checkpoint:
         2: -2
         3: -5                        # Maximum number of agents in the FOV, include the RL agent
   save_path: './checkpoints/'
-  name_prefix: 'medium_a2c'
-  episode_data: "dataset/medium/val_40_episodes.pkl"
+  name_prefix: 'easy_a2c'
+  episode_data: "dataset/easy/val_40_episodes.pkl"
   eval_actions: {"Stop": 3}
 
 # Stable Baselines specific settings
@@ -76,7 +76,7 @@ stable_baselines:
     features_extractor_module: "logicity.rl_agent.policy.neural" # Module path
     features_extractor_class: "MLPFeatureExtractor"
     features_extractor_kwargs:
-      features_dim: 128
+      features_dim: 64
   hyperparameters:
     n_steps: 128
     learning_rate: 0.00003          # Learning rate
@@ -87,4 +87,4 @@ stable_baselines:
   train: true                   # Whether to train the model
   checkpoint_path: ""           # Path to a checkpoint to restore the model from
   num_envs: 2                   # Number of environments to run in parallel
-  total_timesteps: 1000000    # Total number of timesteps to run for all environments combined
+  total_timesteps: 500000    # Total number of timesteps to run for all environments combined

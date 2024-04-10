@@ -10,7 +10,7 @@ from logicity.core.config import *
 import argparse
 
 IMAGE_BASE_PATH = "./imgs"
-SCALE = 4
+SCALE = 8
 
 PATH_DICT = {
     "Car": [os.path.join(IMAGE_BASE_PATH, "car{}.png").format(i) for i in range(1, 2)],
@@ -405,7 +405,7 @@ def gridmap2img_agents(gridmap, gridmap_, icon_dict, static_map, last_icons=None
     else:
         return current_map, icon_dict_local
 
-def main(pkl_path, ego_id, output_folder):
+def main(pkl_path, ego_id, output_folder, crop):
     icon_dict = {}
     for key in PATH_DICT.keys():
         if isinstance(PATH_DICT[key], list):
@@ -433,6 +433,8 @@ def main(pkl_path, ego_id, output_folder):
         grid = obs[key]["World"].numpy()
         grid_ = obs[key+1]["World"].numpy()
         img, last_icons = gridmap2img_agents(grid, grid_, icon_dict, static_map, last_icons, agents)
+        xmin, xmax, ymin, ymax = crop
+        img = img.crop((xmin, ymin, xmax, ymax))
         # Define the text to be added
         text = "#{}".format(key)
 
@@ -464,11 +466,12 @@ def main(pkl_path, ego_id, output_folder):
 if __name__ == "__main__":
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="Create an animated GIF from a sequence of images.")
-    parser.add_argument("--pkl", default='log_rl/hard_episode_test_2.pkl', help="Path to the folder containing image files.")
-    parser.add_argument("--ego_id", type=int, default=3, help="which agent is ego agent. Visualize the ego agent's start and goal. This is layer_id")
-    parser.add_argument("--output_folder", default="vis", help="Output folder.")
+    parser.add_argument("--pkl", default='log_sim/sim_easy2.pkl', help="Path to the folder containing image files.")
+    parser.add_argument("--ego_id", type=int, default=-1, help="which agent is ego agent. Visualize the ego agent's start and goal. This is layer_id")
+    parser.add_argument("--output_folder", default="vis2_8_crop", help="Output folder.")
+    parser.add_argument("--crop", type=list, default=[0, 1023, 0, 1023], help="Crop the image.")
     
     args = parser.parse_args()
 
     # Call the function with provided arguments
-    main(args.pkl, args.ego_id, args.output_folder)
+    main(args.pkl, args.ego_id, args.output_folder, args.crop)

@@ -69,6 +69,11 @@ class Car(Agent):
     def init(self, world_state_matrix, init_info=None, debug=False):
         Traffic_STREET = TYPE_MAP['Traffic Street']
         CROSSING_STREET = TYPE_MAP['Overlap']
+        # specify the occupacy map
+        self.movable_region = (world_state_matrix[STREET_ID] == Traffic_STREET) | (world_state_matrix[STREET_ID] == CROSSING_STREET)
+        self.midline_matrix = (world_state_matrix[STREET_ID] == Traffic_STREET+MID_LINE_CODE_PLUS)
+        self.global_planner = GPlanner_mapper[self.global_planner_type](self.movable_region, self.midline_matrix, CAR_STREET_OFFSET)
+        self.intersection_points = torch.cat([torch.cat(self.global_planner.start_lists, dim=0), torch.cat(self.global_planner.end_lists, dim=0)], dim=0)
         if init_info is not None:
             self.init_from_dict(init_info)
             _ = self.get_start(world_state_matrix)
@@ -81,11 +86,6 @@ class Car(Agent):
                 self.start = torch.tensor(self.get_start(world_state_matrix))
                 self.pos = self.start.clone()
                 self.goal = torch.tensor(self.get_goal(world_state_matrix, self.start))
-        # specify the occupacy map
-        self.movable_region = (world_state_matrix[STREET_ID] == Traffic_STREET) | (world_state_matrix[STREET_ID] == CROSSING_STREET)
-        self.midline_matrix = (world_state_matrix[STREET_ID] == Traffic_STREET+MID_LINE_CODE_PLUS)
-        self.global_planner = GPlanner_mapper[self.global_planner_type](self.movable_region, self.midline_matrix, CAR_STREET_OFFSET)
-        self.intersection_points = torch.cat([torch.cat(self.global_planner.start_lists, dim=0), torch.cat(self.global_planner.end_lists, dim=0)], dim=0)
         # get global traj on the occupacy map
         self.global_traj = self.global_planner.plan(self.start, self.goal, 1)
         self.reach_goal = False
@@ -116,6 +116,7 @@ class Car(Agent):
         desired_locations = sample_start_goal_vh(world_state_matrix, TYPE_MAP['Traffic Street'], building, kernel_size=CAR_GOAL_START_INCLUDE_KERNEL)
         desired_locations[self.region:, :] = False
         desired_locations[:, self.region:] = False
+        desired_locations = desired_locations * self.global_planner.permitted_sg
 
         self.start_point_list = torch.nonzero(desired_locations).tolist()
         random_index = torch.randint(0, len(self.start_point_list), (1,)).item()
@@ -151,6 +152,7 @@ class Car(Agent):
         desired_locations[self.region:, :] = False
         desired_locations[:, self.region:] = False
         desired_locations[start_point[0], start_point[1]] = False
+        desired_locations = desired_locations * self.global_planner.permitted_sg
 
         # Return the indices of the desired locations
         goal_point_list = torch.nonzero(desired_locations).tolist()

@@ -21,17 +21,17 @@ from logicity.utils.gym_callback import EvalCheckpointCallback
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Logic-based city simulation.')
     # logger
-    parser.add_argument('--log_dir', type=str, default="./log_rl")
-    parser.add_argument('--exp', type=str, default="easy_dqn_train")
+    parser.add_argument('--log_dir', type=str, default="./log_sim")
+    parser.add_argument('--exp', type=str, default="sim_easy2")
     parser.add_argument('--vis', action='store_true', help='Visualize the city.')
     # seed
     parser.add_argument('--seed', type=int, default=2)
-    parser.add_argument('--max-steps', type=int, default=300)
+    parser.add_argument('--max-steps', type=int, default=200)
     # RL
     parser.add_argument('--collect_only', action='store_true', help='Only collect expert data.')
     parser.add_argument('--use_gym', action='store_true', help='In gym mode, we can use RL alg. to control certain agents.')
     parser.add_argument('--save_steps', action='store_true', help='Save step-wise decision for each trajectory.')
-    parser.add_argument('--config', default='config/tasks/Nav/easy/algo/nlmdqn.yaml', help='Configure file for this RL exp.')
+    parser.add_argument('--config', default='config/tasks/sim/easy.yaml', help='Configure file for this RL exp.')
     parser.add_argument('--checkpoint_path', default=None, help='Path to the trained model.')
 
     return parser.parse_args()
