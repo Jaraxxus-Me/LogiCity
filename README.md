@@ -90,6 +90,7 @@ Some important arguments:
 
 ## LogiCity Tasks
 
+### Safe Path Following (SPF)
 LogiCity now supports logic based navigation task: the controlled agent is a car, it has 4 action spaces, "Slow" "Fast" "Normal" and "Stop". We require a policy to navigate the ego agent to its goal fast and safe. The are 4 modes:
 
 Easy: Only stop is constrained, few predicates matter (`config/rules/ontology_easy.yaml`)
@@ -111,6 +112,18 @@ The metrics for this taks are:
 - Decision Succ: Count only the traj w/ rule constraints
 - Reward: Action Cost * weight + Rule Violation
 
+### Visual Action Prediction
+To render the image data with labels:
+```
+# Switch to vis branch
+git checkout vis
+
+# get the map pkl file
+bash scripts/sim/run_sim_easy.sh
+
+# render the pkl file into image
+python3 tools/pkl2city.py --pkl [path/to/pkl] --ego_id -1
+```
 
 ## Branches
 
