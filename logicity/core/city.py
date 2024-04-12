@@ -42,13 +42,14 @@ class City:
         current_obs = {}
         # state at time t
         current_obs["World"] = self.city_grid.clone()
-        current_obs["Agent_actions"] = []
 
         new_matrix = torch.zeros_like(self.city_grid)
         current_world = self.city_grid.clone()
         # first do local planning based on city rules, use the current world state, don't update the city matrix
         agent_action_dist = self.local_planner.plan(current_world, self.intersection_matrix, self.agents, \
                                                     self.layer_id2agent_list_id, use_multiprocessing=self.use_multi)
+        cache_actions = self.convert_action(agent_action_dist)
+        current_obs["Agent_actions"] = cache_actions
         # Then do global action taking acording to the local planning results
         # get occupancy map
         for agent in self.agents:
@@ -58,9 +59,6 @@ class City:
             local_action_dist = agent_action_dist[agent_name]
             # global trajectory-based action or sampling from local action distribution
             local_action, new_matrix[agent.layer_id] = agent.get_next_action(self.city_grid, local_action_dist)
-            # save the current action in the action
-            empty_action[local_action] = 1.0
-            current_obs["Agent_actions"].append(empty_action)
             if agent.reach_goal:
                 continue
             next_layer = agent.move(local_action, new_matrix[agent.layer_id])
@@ -261,3 +259,30 @@ class City:
         agent_color = [random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)]
         if "{}_{}".format(agent.type, agent.id) not in self.color_map.keys():
                 self.color_map["{}_{}".format(agent.type, agent.id)] = agent_color
+
+    def convert_action(self, agent_action_dist):
+        cache_actions = {}
+        for key, value in agent_action_dist.items():
+            agent_type, agent_layer = key.split('_')
+            # 0: Slow, 1: Normal, 2: Fast, 3: Stop
+            action_id = -1
+            if agent_type == 'Car':
+                assert len(value) == 13
+                if torch.any(value[:4]):
+                    action_id = 0
+                elif torch.any(value[4:8]):
+                    action_id = 1
+                elif torch.any(value[8:12]):
+                    action_id = 2
+                elif torch.any(value[12]):
+                    action_id = 3
+            elif agent_type == 'Pedestrian':
+                assert len(value) == 5
+                if torch.any(value[:4]):
+                    action_id = 0
+                elif torch.any(value[4]):
+                    action_id = 3
+                
+            assert action_id != -1
+            cache_actions[key] = action_id
+        return cache_actions
