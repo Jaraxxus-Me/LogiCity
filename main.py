@@ -11,7 +11,7 @@ from tqdm import trange
 from logicity.core.config import *
 from logicity.utils.load import CityLoader
 from logicity.utils.logger import setup_logger
-from logicity.utils.vis import visualize_city
+from logicity.utils.vis import visualize_city, get_pos
 # RL
 from logicity.rl_agent.alg import *
 from logicity.utils.gym_wrapper import GymCityWrapper
@@ -33,6 +33,11 @@ def parse_arguments():
     parser.add_argument('--save_steps', action='store_true', help='Save step-wise decision for each trajectory.')
     parser.add_argument('--config', default='config/tasks/sim/easy.yaml', help='Configure file for this RL exp.')
     parser.add_argument('--checkpoint_path', default=None, help='Path to the trained model.')
+    # vis_dataset
+    parser.add_argument('--create_vis_dataset', action='store_true', help='Create vis dataset from sim pkl.')
+    parser.add_argument('--pkl_num', type=int, default=5)
+    parser.add_argument('--dataset_dir', type=str, default="./vis_dataset")
+    parser.add_argument('--img_dir', type=str, default="./vis_dataset/easy_1k")
 
     return parser.parse_args()
 
@@ -311,6 +316,47 @@ def cal_step_metric(decision_step, succ_decision):
     # mean decision succ (over all steps), average decision succ (over all actions), decision succ for each action
     return total_succ/total_decision, average_decision_succ, mean_decision_succ
 
+def create_vis_dataset(args, logger):
+    """
+    The format of this dataset pkl looks like:
+        vis_dataset: {
+            'World0_step0001': {
+                Image_path: 'vis_dataset/easy_1k/easy_1k_0_imgs/step_0001.png',
+                Agents: {
+                    0: {'Bbox': (280, 424, 287, 431), 'Type': 'Car'},
+                    1: {'Bbox': (576, 680, 583, 687), 'Type': 'Pedestrian'},
+                    ...
+                }
+            },
+            ...
+        }
+    """
+    vis_dataset = dict()
+    for world_idx in trange(args.pkl_num):
+        with open(os.path.join(args.log_dir, "{}_{}.pkl".format(args.exp, world_idx)), "rb") as f:
+            cached_observation = pkl.load(f)
+        logger.info(cached_observation)
+        for step in trange(1,args.max_steps+1):
+            step_name = "World{}_step{:0>4d}".format(world_idx, step)
+            vis_dataset[step_name] = {}
+            vis_dataset[step_name]["Image_path"] = os.path.join(args.img_dir, "{}_{}_imgs".format(args.exp, world_idx) ,"step_{:0>4d}.png".format(step))
+            vis_dataset[step_name]["Agents"] = {}
+            time_obs_world = cached_observation["Time_Obs"][step]['World'].numpy()
+            agent_layer = time_obs_world[BASIC_LAYER:]
+            SCALE = 8
+            resized_grid = np.repeat(np.repeat(agent_layer, SCALE, axis=1), SCALE, axis=2)
+            for agent_idx in range(resized_grid.shape[0]):
+                local_layer = resized_grid[agent_idx]
+                left, top, right, bottom = get_pos(local_layer)
+                vis_dataset[step_name]["Agents"][agent_idx] = {}
+                vis_dataset[step_name]["Agents"][agent_idx]["Bbox"] = (left, top, right, bottom)
+                vis_dataset[step_name]["Agents"][agent_idx]["Type"] = LABEL_MAP[local_layer[top, left].item()]
+    
+    if not os.path.exists(args.dataset_dir):
+        os.makedirs(args.dataset_dir)
+    with open(os.path.join(args.dataset_dir, "{}_{}.pkl".format(args.exp, args.pkl_num)), "wb") as f:
+        pkl.dump(vis_dataset, f)
+
 if __name__ == '__main__':
     args = parse_arguments()
     logger = setup_logger(log_dir=args.log_dir, log_name=args.exp)
@@ -323,6 +369,9 @@ if __name__ == '__main__':
         logger.info("Loading RL config from {}.".format(args.config))
         # RL mode, will use gym wrapper to learn and test an agent
         main_gym(args, logger)
+    elif args.create_vis_dataset:
+        logger.info("Running in vis dataset generation mode.")
+        create_vis_dataset(args, logger)
     else:
         # Sim mode, will use the logic-based simulator to run a simulation (no learning)
         logger.info("Running in simulation mode.")
