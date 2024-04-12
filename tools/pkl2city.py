@@ -406,6 +406,8 @@ def gridmap2img_agents(gridmap, gridmap_, icon_dict, static_map, last_icons=None
         return current_map, icon_dict_local
 
 def main(pkl_path, ego_id, output_folder, crop):
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
     icon_dict = {}
     for key in PATH_DICT.keys():
         if isinstance(PATH_DICT[key], list):
@@ -457,7 +459,7 @@ def main(pkl_path, ego_id, output_folder, crop):
         draw.text(position, text, fill=color, font=font)
 
         # Save the image
-        output_path = "{}/step_{}.png".format(output_folder, key)
+        output_path = "{}/step_{:0>4d}.png".format(output_folder, key)
         img.save(output_path)
     cv2.destroyAllWindows()
 

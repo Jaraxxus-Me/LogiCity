@@ -150,3 +150,15 @@ def visualize_intersections(intersection_matrix, file_name="intersections.png"):
     plt.title("Intersections Visualization")
     plt.axis('off')
     plt.imsave(file_name, vis_matrix)
+
+def get_pos(local_layer):
+    local_layer[local_layer==0] += 0.1
+    pos_layer = local_layer == local_layer.astype(np.int64)
+    pixels = torch.nonzero(torch.tensor(pos_layer.astype(np.float32)))
+    rows = pixels[:, 0]
+    cols = pixels[:, 1]
+    left = torch.min(cols).item()
+    right = torch.max(cols).item()
+    top = torch.min(rows).item()
+    bottom = torch.max(rows).item()
+    return (left, top, right, bottom)
