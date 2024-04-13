@@ -7,6 +7,6 @@ python3 main.py \
         --pkl_num 5 \
         --log_dir log_sim \
         --img_dir vis_dataset/${EXPNAME} \
-        --dataset_dir vis_dataset \
+        --dataset_dir vis_dataset/${EXPNAME} \
         --max-steps 1000 \
         --create_vis_dataset

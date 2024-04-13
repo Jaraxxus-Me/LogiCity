@@ -1,5 +1,7 @@
 import numpy as np
 import torch
+import pickle as pkl
+from PIL import Image
 
 # data loader class for data buffer inherited from torch.utils.data.Dataset
 class WMDataset(torch.utils.data.Dataset):
@@ -52,6 +54,58 @@ class WMDataset(torch.utils.data.Dataset):
         else:
             self.reset()
             raise StopIteration
+
+class VisDataset(torch.utils.data.Dataset):
+    def __init__(
+            self,
+            vis_dataset_path, 
+            batch_size=1, 
+            shuffle=True,
+        ):
+
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+        with open(vis_dataset_path, "rb") as f:
+            self.vis_dataset = pkl.load(f)
+        self.vis_dataset_list = list(self.vis_dataset.keys())
+        if self.shuffle:
+            np.random.shuffle(self.vis_dataset_list)
+        self.data_size = len(self.vis_dataset_list)
+        self.num_batches = self.data_size // self.batch_size
+
+    def read_img(self, filepath):
+        img = Image.open(filepath)
+        img = np.array(img)
+        return img
+
+    def __len__(self):
+        return self.num_batches
+    
+    def __getitem__(self, idx):
+        step_names = self.vis_dataset_list[idx*self.batch_size:(idx+1)*self.batch_size]
+        imgs = []
+        bboxes = []
+        types = []
+        next_actions = []
+        for step_name in step_names:
+            imgs.append(self.read_img(self.vis_dataset[step_name]["Image_path"]))
+            bboxes.append(list(self.vis_dataset[step_name]["Bboxes"].values()))
+            types.append(list(self.vis_dataset[step_name]["Types"].values()))
+            next_actions.append(list(self.vis_dataset[step_name]["Next_actions"].values()))
+
+        imgs = torch.Tensor(np.array(imgs))
+        bboxes = torch.Tensor(np.array(bboxes))
+        next_actions = torch.Tensor(np.array(next_actions))
+
+        out_dict = {
+            "step_names": step_names,
+            "imgs": imgs,
+            "bboxes": bboxes,
+            "types": types,
+            "next_actions": next_actions,
+        }
+
+        return out_dict
 
 if __name__ == '__main__': 
     import joblib

@@ -36,7 +36,7 @@ def parse_arguments():
     # vis_dataset
     parser.add_argument('--create_vis_dataset', action='store_true', help='Create vis dataset from sim pkl.')
     parser.add_argument('--pkl_num', type=int, default=5)
-    parser.add_argument('--dataset_dir', type=str, default="./vis_dataset")
+    parser.add_argument('--dataset_dir', type=str, default="./vis_dataset/easy_1k")
     parser.add_argument('--img_dir', type=str, default="./vis_dataset/easy_1k")
 
     return parser.parse_args()
@@ -321,12 +321,10 @@ def create_vis_dataset(args, logger):
     The format of this dataset pkl looks like:
         vis_dataset: {
             'World0_step0001': {
-                Image_path: 'vis_dataset/easy_1k/easy_1k_0_imgs/step_0001.png',
-                Agents: {
-                    0: {'Bbox': (280, 424, 287, 431), 'Type': 'Car'},
-                    1: {'Bbox': (576, 680, 583, 687), 'Type': 'Pedestrian'},
-                    ...
-                }
+                'Image_path': 'vis_dataset/easy_1k/easy_1k_0_imgs/step_0001.png',
+                'Bboxes': {0: (280, 424, 287, 431), 1: (576, 680, 583, 687), ...}
+                'Types': {0: 'Car', 1: 'Pedestrian', ...}
+                'Next_actions': {0: 2, 1: 1, ...} (0: Slow, 1: Normal, 2: Fast, 3: Stop)
             },
             ...
         }
@@ -335,23 +333,24 @@ def create_vis_dataset(args, logger):
     for world_idx in trange(args.pkl_num):
         with open(os.path.join(args.log_dir, "{}_{}.pkl".format(args.exp, world_idx)), "rb") as f:
             cached_observation = pkl.load(f)
-        logger.info(cached_observation)
-        for step in trange(1,args.max_steps+1):
+        # logger.info(cached_observation)
+        for step in trange(1, args.max_steps):
             step_name = "World{}_step{:0>4d}".format(world_idx, step)
             vis_dataset[step_name] = {}
             vis_dataset[step_name]["Image_path"] = os.path.join(args.img_dir, "{}_{}_imgs".format(args.exp, world_idx) ,"step_{:0>4d}.png".format(step))
-            vis_dataset[step_name]["Agents"] = {}
-            time_obs_world = cached_observation["Time_Obs"][step]['World'].numpy()
+            vis_dataset[step_name]["Bboxes"] = {}
+            vis_dataset[step_name]["Types"] = {}
+            vis_dataset[step_name]["Next_actions"] = {}
+            time_obs_world = cached_observation["Time_Obs"][step]["World"].numpy()
             agent_layer = time_obs_world[BASIC_LAYER:]
             SCALE = 8
             resized_grid = np.repeat(np.repeat(agent_layer, SCALE, axis=1), SCALE, axis=2)
             for agent_idx in range(resized_grid.shape[0]):
                 local_layer = resized_grid[agent_idx]
                 left, top, right, bottom = get_pos(local_layer)
-                vis_dataset[step_name]["Agents"][agent_idx] = {}
-                vis_dataset[step_name]["Agents"][agent_idx]["Bbox"] = (left, top, right, bottom)
-                vis_dataset[step_name]["Agents"][agent_idx]["Type"] = LABEL_MAP[local_layer[top, left].item()]
-    
+                vis_dataset[step_name]["Bboxes"][agent_idx] = (left, top, right, bottom)
+                vis_dataset[step_name]["Types"][agent_idx] = LABEL_MAP[local_layer[top, left].item()]
+                vis_dataset[step_name]["Next_actions"][agent_idx] = list(cached_observation["Time_Obs"][step]["Agent_actions"].values())[agent_idx]
     if not os.path.exists(args.dataset_dir):
         os.makedirs(args.dataset_dir)
     with open(os.path.join(args.dataset_dir, "{}_{}.pkl".format(args.exp, args.pkl_num)), "wb") as f:

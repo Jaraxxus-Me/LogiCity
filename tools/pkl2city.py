@@ -431,7 +431,7 @@ def main(pkl_path, ego_id, output_folder, crop):
     static_map_img = Image.fromarray(static_map)
     static_map_img.save("{}/static_layout.png".format(output_folder))
     last_icons = None
-    for key in trange(time_steps[0], time_steps[-2]):
+    for key in trange(time_steps[0], time_steps[-1]):
         grid = obs[key]["World"].numpy()
         grid_ = obs[key+1]["World"].numpy()
         img, last_icons = gridmap2img_agents(grid, grid_, icon_dict, static_map, last_icons, agents)
@@ -471,7 +471,7 @@ if __name__ == "__main__":
     parser.add_argument("--pkl", default='log_sim/sim_easy2.pkl', help="Path to the folder containing image files.")
     parser.add_argument("--ego_id", type=int, default=-1, help="which agent is ego agent. Visualize the ego agent's start and goal. This is layer_id")
     parser.add_argument("--output_folder", default="vis2_8_crop", help="Output folder.")
-    parser.add_argument("--crop", type=list, default=[0, 1023, 0, 1023], help="Crop the image.")
+    parser.add_argument("--crop", type=list, default=[0, 1024, 0, 1024], help="Crop the image.")
     
     args = parser.parse_args()
 
