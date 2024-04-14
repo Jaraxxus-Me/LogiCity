@@ -28,9 +28,16 @@ class LogicityPredictorVis(nn.Module):
         self.resnet_fpn = resnet_fpn_backbone(
             "resnet50", pretrained=True, trainable_layers=5
         )
+        self.transform = transforms.Compose([
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
         
     def forward(self, batch_imgs, batch_bboxes):
+        B = batch_imgs.shape[0]
         batch_imgs = batch_imgs.permute(0, 3, 2, 1)
+        # normalize with mean and std of ImageNet
+        batch_img = self.transform(batch_img)
+        # extract img features
         with torch.no_grad(): # frozen
             fpn_features = self.resnet_fpn(batch_imgs)
         feature_list = []
@@ -42,10 +49,11 @@ class LogicityPredictorVis(nn.Module):
         imgs_features = torch.nn.functional.interpolate(imgs_features, batch_imgs.shape[-2:], mode="bilinear") # BxCxHxW
         # get bbox features
         bboxes = [batch_bboxes[i] for i in range(batch_bboxes.shape[0])]
-        roi_features = torchvision.ops.roi_pool(imgs_features, bboxes, output_size=1).squeeze() # NxC
+        roi_features = torchvision.ops.roi_pool(imgs_features, bboxes, output_size=1).squeeze()
+        roi_features = roi_features.view(B, roi_features.shape[0]/B, roi_features.shape[1]) # BxNxC
         # predict types
         # ...
-        # create scene graph
+        # create scene graph (node:(pos, type))
         # ...
         # predict actions
         # ...

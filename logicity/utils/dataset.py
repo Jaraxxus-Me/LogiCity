@@ -1,7 +1,8 @@
 import numpy as np
 import torch
 import pickle as pkl
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
+import os
 
 # data loader class for data buffer inherited from torch.utils.data.Dataset
 class WMDataset(torch.utils.data.Dataset):
@@ -61,10 +62,12 @@ class VisDataset(torch.utils.data.Dataset):
             vis_dataset_path, 
             batch_size=1, 
             shuffle=True,
+            bbox_vis=False,
         ):
 
         self.batch_size = batch_size
         self.shuffle = shuffle
+        self.bbox_vis = bbox_vis
         with open(vis_dataset_path, "rb") as f:
             self.vis_dataset = pkl.load(f)
         self.vis_dataset_list = list(self.vis_dataset.keys())
@@ -77,6 +80,28 @@ class VisDataset(torch.utils.data.Dataset):
         img = Image.open(filepath)
         img = np.array(img)
         return img
+    
+    def bboxes_visualization(self, step_name, img_path, bboxes, detailed_types, output_folder):
+        im = Image.open(img_path)
+        draw = ImageDraw.Draw(im)
+        # Define font type and size (you might need to provide the path to a .ttf font file)
+        try:
+            font = ImageFont.truetype("arial.ttf", size=100)  # Example font, adjust the path and size as needed
+        except IOError:
+            font = ImageFont.load_default()
+        for i, bbox in enumerate(bboxes):
+            label = detailed_types[i]
+            font_bbox = font.getbbox(label)
+            text_origin = [bbox[0], bbox[1] - (font_bbox[3]-font_bbox[1])]
+            label_bbox = draw.textbbox(text_origin, label, font)
+            draw.rectangle(bbox, outline='red',width=2)
+            draw.rectangle(label_bbox, fill='red')
+            draw.text(text_origin, label, fill=(255, 255, 255), font=font)
+        if not os.path.exists(output_folder):
+            os.makedirs(output_folder)
+        output_path = "{}/{}.png".format(output_folder, step_name)
+        im.save(output_path)
+        return im
 
     def __len__(self):
         return self.num_batches
@@ -86,15 +111,26 @@ class VisDataset(torch.utils.data.Dataset):
         imgs = []
         bboxes = []
         types = []
+        detailed_types = []
+        priorities = []
+        directions = []
         next_actions = []
         for step_name in step_names:
             imgs.append(self.read_img(self.vis_dataset[step_name]["Image_path"]))
             bboxes.append(list(self.vis_dataset[step_name]["Bboxes"].values()))
             types.append(list(self.vis_dataset[step_name]["Types"].values()))
+            detailed_types.append(list(self.vis_dataset[step_name]["Detailed_types"].values()))
+            priorities.append(list(self.vis_dataset[step_name]["Priorities"].values()))
+            directions.append(list(self.vis_dataset[step_name]["Directions"].values()))
             next_actions.append(list(self.vis_dataset[step_name]["Next_actions"].values()))
+
+            if self.bbox_vis:
+                output_folder = "bbox_vis/{}".format(step_name.split('_')[0])
+                self.bboxes_visualization(step_name, self.vis_dataset[step_name]["Image_path"], bboxes[-1], types[-1], output_folder)
 
         imgs = torch.Tensor(np.array(imgs))
         bboxes = torch.Tensor(np.array(bboxes))
+        priorities = torch.Tensor(np.array(priorities))
         next_actions = torch.Tensor(np.array(next_actions))
 
         out_dict = {
@@ -102,6 +138,9 @@ class VisDataset(torch.utils.data.Dataset):
             "imgs": imgs,
             "bboxes": bboxes,
             "types": types,
+            "detailed_types": detailed_types,
+            "priorities": priorities,
+            "directions": directions,
             "next_actions": next_actions,
         }
 

@@ -8,64 +8,7 @@ from tqdm import trange
 from scipy.ndimage import label
 from logicity.core.config import *
 import argparse
-
-IMAGE_BASE_PATH = "./imgs"
-SCALE = 8
-
-PATH_DICT = {
-    "Car": [os.path.join(IMAGE_BASE_PATH, "car{}.png").format(i) for i in range(1, 2)],
-    "Ambulance": os.path.join(IMAGE_BASE_PATH, "car_ambulance.png"),
-    "Bus": os.path.join(IMAGE_BASE_PATH, "car_bus.png"),
-    "Tiro": os.path.join(IMAGE_BASE_PATH, "car_tiro.png"),
-    "Police": os.path.join(IMAGE_BASE_PATH, "car_police.png"),
-    "Reckless": os.path.join(IMAGE_BASE_PATH, "car_reckless.png"),
-    "Pedestrian": [os.path.join(IMAGE_BASE_PATH, "pedestrian{}.png").format(i) for i in range(1, 3)],
-    "Pedestrian_old": os.path.join(IMAGE_BASE_PATH, "pedestrian_old.png"),
-    "Pedestrian_young": os.path.join(IMAGE_BASE_PATH, "pedestrian_young.png"),
-    "Walking Street": os.path.join(IMAGE_BASE_PATH, "walking.png"),
-    "Traffic Street": os.path.join(IMAGE_BASE_PATH, "traffic.png"),
-    "Overlap": os.path.join(IMAGE_BASE_PATH, "crossing.png"),
-    "Gas Station": os.path.join(IMAGE_BASE_PATH, "gas.png"),
-    "Garage": os.path.join(IMAGE_BASE_PATH, "garage.png"),
-    "House": [os.path.join(IMAGE_BASE_PATH, "house{}.png").format(i) for i in range(1, 4)],
-    "Office": [os.path.join(IMAGE_BASE_PATH, "office{}.png").format(i) for i in range(1, 4)],
-    "Store": [os.path.join(IMAGE_BASE_PATH, "store{}.png").format(i) for i in range(1, 4)],
-}
-
-ICON_SIZE_DICT = {
-    "Car": SCALE*6,
-    "Ambulance": SCALE*6,
-    "Bus": SCALE*6,
-    "Tiro": SCALE*6,
-    "Police": SCALE*6,
-    "Reckless": SCALE*6,
-    "Pedestrian": SCALE*4,
-    "Pedestrian_old": SCALE*4,
-    "Pedestrian_young": SCALE*4,
-    "Walking Street": SCALE*10,
-    "Traffic Street": SCALE*10,
-    "Overlap": SCALE*10,
-    "Gas Station": SCALE*BUILDING_SIZE,
-    "Garage": SCALE*BUILDING_SIZE,
-    "House": SCALE*BUILDING_SIZE,
-    "Office": SCALE*BUILDING_SIZE,
-    "Store": SCALE*BUILDING_SIZE,
-}
-
-def resize_with_aspect_ratio(image, base_size):
-    # Determine the shorter side of the image
-    short_side = min(image.shape[:2])
-    
-    # Calculate the scaling factor
-    scale_factor = base_size / short_side
-    
-    # Calculate the new dimensions of the image
-    new_dims = (int(image.shape[1] * scale_factor), int(image.shape[0] * scale_factor))
-    
-    # Resize the image with the new dimensions
-    resized_img = cv2.resize(image, new_dims, interpolation=cv2.INTER_LINEAR)
-    
-    return resized_img
+from logicity.utils.vis import *
 
 def gridmap2img_static(gridmap, icon_dict, ego_id):
     # step 1: get the size of the gridmap, create a blank image with size*SCALE
@@ -158,37 +101,6 @@ def gridmap2img_static(gridmap, icon_dict, ego_id):
 
     return img
 
-def get_pos(local_layer):
-    local_layer[local_layer==0] += 0.1
-    pos_layer = local_layer == local_layer.astype(np.int64)
-    pixels = torch.nonzero(torch.tensor(pos_layer.astype(np.float32)))
-    rows = pixels[:, 0]
-    cols = pixels[:, 1]
-    left = torch.min(cols).item()
-    right = torch.max(cols).item()
-    top = torch.min(rows).item()
-    bottom = torch.max(rows).item()
-    return (left, top, right, bottom)
-
-def get_direction(left, left_, top, top_):
-    if left_ > left:
-        return "right"
-    elif left_ < left:
-        return "left"
-    elif top_ > top:
-        return "down"
-    elif top_ < top:
-        return "up"
-    else:
-        return "none"
-
-def rotate_image(image, angle):
-    """ Rotate the given image by the specified angle """
-    if angle >= 0:
-        return image.rotate(angle, expand=True)
-    else:
-        return image.transpose(Image.FLIP_LEFT_RIGHT)
-
 def create_custom_mask(image, threshold=0.1):
     if image.mode == 'RGBA':
         # Use the existing alpha channel
@@ -208,16 +120,6 @@ def create_custom_mask(image, threshold=0.1):
                 if luminance > threshold:
                     mask_pixels[i, j] = 255
         return mask
-    
-def get_steet_type(gridmap, position):
-    l, t, r, b = position
-    partial_grid_horizontal = gridmap[2, t, l-10:l+10]
-    if np.sum(partial_grid_horizontal == TYPE_MAP["Mid Lane"]) > 0:
-        return "v"
-    partial_grid_vertical = gridmap[2, t-10:t+10, l]
-    if np.sum(partial_grid_vertical == TYPE_MAP["Mid Lane"]) > 0:
-        return "h"
-    return None
 
 def paste_car_on_map(map_image, car_image, position, direction, type, position_last=None, street_type=None):
     """ Paste car on the map with the correct orientation and position """
@@ -379,7 +281,7 @@ def gridmap2img_agents(gridmap, gridmap_, icon_dict, static_map, last_icons=None
             icon = icon_list[icon_id]
 
         if agent_type == "Car":
-            street_type = get_steet_type(resized_grid, pos)
+            street_type = get_street_type(resized_grid, pos)
         else:
             street_type = None    
 
