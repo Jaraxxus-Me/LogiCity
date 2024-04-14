@@ -4,7 +4,6 @@ import torch.nn as nn
 import torchvision
 from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
 import argparse
-
 from logicity.utils.dataset import VisDataset
 
 def CPU(x):
@@ -28,15 +27,25 @@ class LogicityPredictorVis(nn.Module):
         self.resnet_fpn = resnet_fpn_backbone(
             "resnet50", pretrained=True, trainable_layers=5
         )
-        self.transform = transforms.Compose([
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        self.transform = torchvision.transforms.Compose([
+            torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
+
+        self.predicates_arity_1_name_list = ["IsPedestrian", "IsCar", "IsAmbulance", "IsOld", "IsTiro", "IsAtInter", "IsInInter"]
+        self.multilabel_classifier = nn.Sequential(
+            nn.Linear(1024, 512),
+            nn.ReLU(),
+            nn.Linear(512, 256),
+            nn.ReLU(),
+            nn.Linear(256, len(self.predicates_arity_1_name_list)),
+            nn.Sigmoid(),
+        )
         
     def forward(self, batch_imgs, batch_bboxes):
         B = batch_imgs.shape[0]
         batch_imgs = batch_imgs.permute(0, 3, 2, 1)
         # normalize with mean and std of ImageNet
-        batch_img = self.transform(batch_img)
+        batch_imgs = self.transform(batch_imgs)
         # extract img features
         with torch.no_grad(): # frozen
             fpn_features = self.resnet_fpn(batch_imgs)
@@ -50,10 +59,10 @@ class LogicityPredictorVis(nn.Module):
         # get bbox features
         bboxes = [batch_bboxes[i] for i in range(batch_bboxes.shape[0])]
         roi_features = torchvision.ops.roi_pool(imgs_features, bboxes, output_size=1).squeeze()
-        roi_features = roi_features.view(B, roi_features.shape[0]/B, roi_features.shape[1]) # BxNxC
-        # predict types
-        # ...
-        # create scene graph (node:(pos, type))
+        roi_features = roi_features.view(B, roi_features.shape[0]//B, roi_features.shape[1]) # BxNxC
+        # predict concepts
+        bbox_concepts = self.multilabel_classifier(roi_features)
+        # create scene graph (node:(pos, concept, priority))
         # ...
         # predict actions
         # ...
