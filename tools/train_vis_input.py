@@ -4,7 +4,10 @@ import torch.nn as nn
 import torchvision
 from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
 import argparse
-
+import yaml
+import networkx as nx
+from torch_geometric.nn import NNConv
+from tqdm import tqdm, trange
 from logicity.utils.dataset import VisDataset
 
 def CPU(x):
@@ -16,52 +19,162 @@ def CUDA(x):
 def get_parser():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data_path", type=str, default='vis_dataset/easy_1k/easy_1k_5.pkl')
-    
+    parser.add_argument("--mode", type=str, default='easy')
     return parser.parse_args()
 
-# TODO
 # This bilevel optimization model uses an img as vis input and output agents' next actions
 class LogicityPredictorVis(nn.Module):
-    def __init__(self):
+    def __init__(self, mode):
         super(LogicityPredictorVis, self).__init__()
-        # build feature extractor
+
+        # Build feature extractor
+        self.resnet_layer_num = 4
         self.resnet_fpn = resnet_fpn_backbone(
-            "resnet50", pretrained=True, trainable_layers=5
+            "resnet50", pretrained=True, trainable_layers=self.resnet_layer_num+1
         )
-        self.transform = transforms.Compose([
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        self.img_feature_channels = self.resnet_fpn.out_channels * self.resnet_layer_num # 1024
+        self.transform = torchvision.transforms.Compose([
+            torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
+
+        # Process ontology
+        assert mode in ["easy", "medium", "hard", "expert"]
+        if mode in ["easy", "medium"]:
+            ontology_yaml_file = "config/rules/ontology_{}.yaml".format(mode)
+        else:
+            ontology_yaml_file = "config/rules/ontology_full.yaml"
+        with open(ontology_yaml_file, 'r') as file:
+            self.ontology_config = yaml.load(file, Loader=yaml.Loader)
+        self.node_concept_names = []
+        self.edge_concept_names = []
+        self.action_names = []
+        for predicate in self.ontology_config["Predicates"]:
+            predicate_name = list(predicate.keys())[0]
+            if predicate_name.startswith("Is"):
+                self.node_concept_names.append(predicate_name)
+            elif predicate[predicate_name]["arity"] == 2:
+                self.edge_concept_names.append(predicate_name)
+            else:
+                self.action_names.append(predicate_name)
+
+        # Process rules (TODO: read rules from rule file)
+        if mode == "expert": # when to stop, fast, slow
+            pass
+        else: # when to stop
+            pass
+
+        # Build node concept predictor
+        self.multilabel_classifier = nn.Sequential(
+            nn.Linear(self.img_feature_channels, 512),
+            nn.ReLU(),
+            nn.Linear(512, 256),
+            nn.ReLU(),
+            nn.Linear(256, len(self.node_concept_names)),
+            nn.Sigmoid(),
+        )
+
+        # Build edge concept predictor
+        # node attributes used for edge prediction (w/ priority): concepts + bbox + direction
+        self.node_channels = len(self.node_concept_names) + 4 + 4
+        # HigherPri can be directly calc by priority in nodes, no need to predict
+        assert "HigherPri" in self.edge_concept_names
+        self.edge_channels = len(self.edge_concept_names) - 1
+        self.action_channels = len(self.action_names)
+        if mode == "easy":
+            self.max_node_num = 8 # TODO: how to get this num from config file? or just hard code it?
+        else:
+            pass
+        self.edge_predictor = nn.Sequential(
+            nn.Linear(self.node_channels, 256),
+            nn.ReLU(),
+            nn.Linear(256, 64),
+            nn.ReLU(),
+            nn.Linear(64, (self.max_node_num-1)*self.edge_channels),
+            nn.Sigmoid(),
+        )
+
+        # Build action predictor
+        self.edge_processor = nn.Sequential(
+            nn.Linear(self.edge_channels+1, 128),
+            nn.ReLU(),
+            nn.Linear(128, self.node_channels*self.action_channels)
+        ) # A neural network that maps edge features edge_attr of shape [-1, num_edge_features] to shape [-1, in_channels * out_channels]
+        self.gnn = NNConv(in_channels=self.node_channels, out_channels=self.action_channels, nn=self.edge_processor) # don't support batch operation
+        self.action_softmax = nn.Softmax(dim=-1)
+
+        # Prepare for rule constraint
+        self.node_concept_idx_dict = {}
+        self.edge_concept_idx_dict = {}
+        for i, node_concept in enumerate(self.node_concept_names):
+            self.node_concept_idx_dict[node_concept] = i
+        for i, edge_concept in enumerate(self.edge_concept_names):
+            self.edge_concept_idx_dict[edge_concept] = i
         
-    def forward(self, batch_imgs, batch_bboxes):
+    def forward(self, batch_imgs, batch_bboxes, batch_directions, batch_priorities):
+        device = batch_imgs.device
         B = batch_imgs.shape[0]
-        batch_imgs = batch_imgs.permute(0, 3, 2, 1)
+        N = batch_bboxes.shape[1]
+        batch_imgs = batch_imgs.permute(0, 3, 2, 1) # Bx3xHxW
         # normalize with mean and std of ImageNet
-        batch_img = self.transform(batch_img)
-        # extract img features
+        batch_imgs = self.transform(batch_imgs)
+        
+        # Extract img features
         with torch.no_grad(): # frozen
             fpn_features = self.resnet_fpn(batch_imgs)
         feature_list = []
-        for layer in range(4):
+        for layer in range(self.resnet_layer_num):
             feature = fpn_features[str(layer)]
             feature = torch.nn.functional.interpolate(feature, fpn_features["0"].shape[-2:], mode="bilinear")
             feature_list.append(feature)
         imgs_features = torch.cat(feature_list, dim=1)
-        imgs_features = torch.nn.functional.interpolate(imgs_features, batch_imgs.shape[-2:], mode="bilinear") # BxCxHxW
-        # get bbox features
+        imgs_features = torch.nn.functional.interpolate(imgs_features, batch_imgs.shape[-2:], mode="bilinear") # B x C_img x H x W
+        
+        # Get bbox features
         bboxes = [batch_bboxes[i] for i in range(batch_bboxes.shape[0])]
         roi_features = torchvision.ops.roi_pool(imgs_features, bboxes, output_size=1).squeeze()
-        roi_features = roi_features.view(B, roi_features.shape[0]/B, roi_features.shape[1]) # BxNxC
-        # predict types
-        # ...
-        # create scene graph (node:(pos, type))
-        # ...
-        # predict actions
-        # ...
-        return 0
+        roi_features = roi_features.view(B, N, roi_features.shape[1]) # B x N x C_img
+        
+        # Predict node concepts
+        bbox_concepts = self.multilabel_classifier(roi_features)
+        
+        # Create scene graph (node:(concept, bbox, direction, priority))
+        # 1. concat node attributes (except for priority)
+        node_attributes = torch.cat([bbox_concepts, batch_bboxes, batch_directions], dim=-1) # B x N x C_node
+        # 2. prepare edge idxs
+        edge_idxs = []
+        for i in range(N):
+            for j in range(N):
+                if i == j:
+                    continue
+                else:
+                    edge_idxs.append([i, j])
+        edge_idxs = torch.Tensor(edge_idxs).permute(1, 0).to(torch.int64).to(device)
+        # 3. predict edge attributes
+        edge_attributes = self.edge_predictor(node_attributes) # B x N x ((N-1) x C_edge)
+        edge_attributes = edge_attributes.view(B, -1, self.edge_channels) # B x (N x (N-1)) x C_edge
+        # 4. add HigherPri to edge attributes
+        pri_mask = (batch_priorities.unsqueeze(2)>batch_priorities.unsqueeze(1)).to(torch.float32)
+        higher_pri = torch.zeros(B, N, N-1)
+        higher_pri[:, :, :N-1] = pri_mask[:, :, :N-1] 
+        higher_pri[:, :, N-1:] = pri_mask[:, :, N:]
+        higher_pri = higher_pri.view(B, -1).to(device)
+        edge_attributes = torch.cat([edge_attributes, higher_pri.unsqueeze(-1)], dim=-1) # B x (N x (N-1)) x (C_edge+1)
+
+        # Predict actions
+        next_actions = self.gnn(node_attributes[0], edge_idxs, edge_attributes[0])
+        next_actions = self.action_softmax(next_actions)
+
+        # Use rules to constraint actions
+        if mode == "expert":
+            pass
+        else:
+            pass
+
+        return next_actions
     
 def compute_action_acc(pred, label):
-    pred = CPU(pred).numpy()
-    label = CPU(label).numpy()
+    pred = CPU(pred)
+    label = CPU(label)
     pred = np.argmax(pred, axis=-1)
     acc = np.sum(pred == label) / len(label)
     # print(pred, label, acc)
@@ -70,25 +183,26 @@ def compute_action_acc(pred, label):
 if __name__ == "__main__":
     args = get_parser()
     vis_dataset_path = args.data_path
-    model = LogicityPredictorVis()
+    mode = args.mode
+    model = LogicityPredictorVis(mode)
     model = CUDA(model)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
     # split into train and test set
-    dataset = VisDataset(vis_dataset_path)
+    dataset = VisDataset(vis_dataset_path, batch_size=1)
     train_size = int(len(dataset) * 0.8)
     test_size = len(dataset) - train_size
     train_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, test_size])
     
     loss_ce = nn.CrossEntropyLoss()
-    for epoch in range(1000):
+    for epoch in range(100):
         loss_train, loss_test = 0., 0.
         acc_train, acc_test = 0., 0.
 
-        for batch in train_dataset:
+        for batch in tqdm(train_dataset):
             gt_actions = CUDA(batch["next_actions"].flatten(0))
-            pred_actions = model(CUDA(batch["imgs"]), CUDA(batch["bboxes"]))
+            pred_actions = model(CUDA(batch["imgs"]), CUDA(batch["bboxes"]), CUDA(batch["directions"]), CUDA(batch["priorities"]))
             loss_actions = loss_ce(pred_actions, gt_actions)
             loss = loss_actions
             loss.backward()
@@ -100,15 +214,14 @@ if __name__ == "__main__":
         
         loss_train /= len(train_dataset)
         acc_train /= len(train_dataset)
-        print("Training: {}, Loss: {:.4f}, Acc: {:.4f}".format(
+        print("Epoch: {},Training Loss: {:.4f}, Acc: {:.4f}".format(
             epoch, loss_train, acc_train))
         
         # evaluate the accuracy and loss on test set
         with torch.no_grad():
-            for batch in test_dataset:
-                gt_actions = np.array([list(actions.values()) for actions in batch["next_actions"]]).flatten()
-                gt_actions = torch.from_numpy(gt_actions)
-                pred_actions = model(batch["imgs"], batch["bboxes"]) # cuda?
+            for batch in tqdm(test_dataset):
+                gt_actions = CUDA(batch["next_actions"].flatten(0))
+                pred_actions = model(CUDA(batch["imgs"]), CUDA(batch["bboxes"]), CUDA(batch["directions"]), CUDA(batch["priorities"]))
                 loss_actions = loss_ce(pred_actions, gt_actions)
                 loss = loss_actions
                 loss_test += loss.item()
@@ -117,5 +230,5 @@ if __name__ == "__main__":
         
         loss_test /= len(test_dataset)
         acc_test /= len(test_dataset)
-        print("Testing: {}, Loss: {:.4f}, Acc: {:.4f}".format(
+        print("Epoch: {}, Testing Loss: {:.4f}, Acc: {:.4f}".format(
             epoch, loss_test, acc_test))
