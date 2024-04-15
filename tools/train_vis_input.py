@@ -38,7 +38,7 @@ class LogicityPredictorVis(nn.Module):
         if mode in ["easy", "medium"]:
             ontology_yaml_file = "config/rules/ontology_{}.yaml".format(mode)
         else:
-            ontology_yaml_file = "config/rules/ontology_full.yaml".format(mode)
+            ontology_yaml_file = "config/rules/ontology_full.yaml"
         with open(ontology_yaml_file, 'r') as file:
             self.ontology_config = yaml.load(file, Loader=yaml.Loader)
         self.node_concept_names = []
