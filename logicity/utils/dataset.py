@@ -75,6 +75,13 @@ class VisDataset(torch.utils.data.Dataset):
             np.random.shuffle(self.vis_dataset_list)
         self.data_size = len(self.vis_dataset_list)
         self.num_batches = self.data_size // self.batch_size
+        self.direction_dict = {
+            "left": [1, 0, 0, 0],
+            "right": [0, 1, 0, 0],
+            "up": [0, 0, 1, 0],
+            "down": [0, 0, 0, 1],
+            "none": [0, 0, 0, 0],
+        }
 
     def read_img(self, filepath):
         img = Image.open(filepath)
@@ -121,7 +128,11 @@ class VisDataset(torch.utils.data.Dataset):
             types.append(list(self.vis_dataset[step_name]["Types"].values()))
             detailed_types.append(list(self.vis_dataset[step_name]["Detailed_types"].values()))
             priorities.append(list(self.vis_dataset[step_name]["Priorities"].values()))
-            directions.append(list(self.vis_dataset[step_name]["Directions"].values()))
+            direction_name_list = list(self.vis_dataset[step_name]["Directions"].values())
+            direction_tensor_list = []
+            for direction_name in direction_name_list:
+                direction_tensor_list.append(self.direction_dict[direction_name])
+            directions.append(direction_tensor_list)
             next_actions.append(list(self.vis_dataset[step_name]["Next_actions"].values()))
 
             if self.bbox_vis:
@@ -131,7 +142,8 @@ class VisDataset(torch.utils.data.Dataset):
         imgs = torch.Tensor(np.array(imgs))
         bboxes = torch.Tensor(np.array(bboxes))
         priorities = torch.Tensor(np.array(priorities))
-        next_actions = torch.Tensor(np.array(next_actions))
+        directions = torch.Tensor(np.array(directions))
+        next_actions = torch.Tensor(np.array(next_actions)).to(torch.int64)
 
         out_dict = {
             "step_names": step_names,
