@@ -250,6 +250,6 @@ if __name__ == "__main__":
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'loss': loss_train,
-            }, "vis_input_weights/baseline_lr{}_epoch{}_valacc{}.pth".format(lr, epoch, acc_test))
+            }, "vis_input_weights/baseline_lr{}_epoch{}_valacc{:.3f}.pth".format(lr, epoch, acc_test))
 
     wandb.finish()
