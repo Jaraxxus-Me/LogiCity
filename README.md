@@ -128,6 +128,9 @@ bash scripts/vis/render_pkl2img_easy.sh
 
 # get the vis dataset
 bash scripts/vis/create_vis_dataset_easy.sh
+
+# train the model with vis dataset
+python tools/train_vis_input.py --data_path vis_dataset/easy_1k/easy_1k_5.pkl --mode easy
 ```
 
 ## Branches
