@@ -245,5 +245,6 @@ if __name__ == "__main__":
         })
 
         if acc_test > acc_test_best and (epoch + 1) % 5 == 0:
+            acc_test_best = acc_test
             wandb.save("vis_input_weights/baseline_lr{}_epoch{}.pth".format(lr, epoch))
     wandb.finish()
