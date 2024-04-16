@@ -167,7 +167,7 @@ if __name__ == "__main__":
     args = get_parser()
     vis_dataset_path = args.data_path
     mode = args.mode
-    lr = 1e-5
+    lr = 5e-6
     epochs = 100
 
     config = {
@@ -194,6 +194,9 @@ if __name__ == "__main__":
     train_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, test_size])
 
     loss_ce = nn.CrossEntropyLoss()
+
+    wandb.watch(model)
+    acc_test_best = -1
     for epoch in range(epochs):
         loss_train, loss_test = 0., 0.
         acc_train, acc_test = 0., 0.
@@ -241,4 +244,6 @@ if __name__ == "__main__":
             'acc_test': acc_test,
         })
 
+        if acc_test > acc_test_best and (epoch + 1) % 5 == 0:
+            wandb.save("vis_input_weights/baseline_lr{}_epoch{}.pth".format(lr, epoch))
     wandb.finish()
