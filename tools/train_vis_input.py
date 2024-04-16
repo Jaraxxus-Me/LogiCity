@@ -5,9 +5,10 @@ import torchvision
 from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
 import argparse
 import yaml
-import networkx as nx
 from torch_geometric.nn import NNConv
-from tqdm import tqdm, trange
+from tqdm import tqdm
+import wandb
+import json
 from logicity.utils.dataset import VisDataset
 
 def CPU(x):
@@ -166,10 +167,26 @@ if __name__ == "__main__":
     args = get_parser()
     vis_dataset_path = args.data_path
     mode = args.mode
+    lr = 1e-5
+    epochs = 100
+
+    config = {
+        "dataset": "easy_1k_5",
+        "epochs": epochs,
+        "learning_rate": lr,
+    }
+
+    wandb.init(
+        project = "logicity_vis_input",
+        group = "baseline(mlp+gnn)",
+        name = json.dumps(config),
+        config = config,
+    )
+
     model = LogicityPredictorVis(mode)
     model = CUDA(model)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=5*1e-6)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
     # split into train and test set
     dataset = VisDataset(vis_dataset_path, batch_size=1)
@@ -178,7 +195,7 @@ if __name__ == "__main__":
     train_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, test_size])
 
     loss_ce = nn.CrossEntropyLoss()
-    for epoch in range(100):
+    for epoch in range(epochs):
         loss_train, loss_test = 0., 0.
         acc_train, acc_test = 0., 0.
 
@@ -199,7 +216,7 @@ if __name__ == "__main__":
         acc_train /= len(train_dataset)
         print("Epoch: {},Training Loss: {:.4f}, Acc: {:.4f}".format(
             epoch, loss_train, acc_train))
-        
+
         # evaluate the accuracy and loss on test set
         with torch.no_grad():
             for batch in tqdm(test_dataset):
@@ -215,3 +232,14 @@ if __name__ == "__main__":
         acc_test /= len(test_dataset)
         print("Epoch: {}, Testing Loss: {:.4f}, Acc: {:.4f}".format(
             epoch, loss_test, acc_test))
+        
+        wandb.log({
+            'epoch': epoch,
+            'learning rate': optimizer.state_dict()['param_groups'][0]['lr'],
+            'loss_train': loss_train,
+            'loss_test': loss_test,
+            'acc_train': acc_train,
+            'acc_test': acc_test,
+        })
+
+    wandb.finish()
