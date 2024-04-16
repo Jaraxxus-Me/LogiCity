@@ -178,8 +178,7 @@ if __name__ == "__main__":
 
     wandb.init(
         project = "logicity_vis_input",
-        group = "baseline(mlp+gnn)",
-        name = json.dumps(config),
+        name = "baseline(mlp+gnn)_{}".format(json.dumps(config)),
         config = config,
     )
 
