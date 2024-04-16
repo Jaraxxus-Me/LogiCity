@@ -144,6 +144,7 @@ class VisDataset(torch.utils.data.Dataset):
         priorities = torch.Tensor(np.array(priorities))
         directions = torch.Tensor(np.array(directions))
         next_actions = torch.Tensor(np.array(next_actions)).to(torch.int64)
+        next_actions = torch.nn.functional.one_hot(next_actions, num_classes=4).to(torch.float32)
 
         out_dict = {
             "step_names": step_names,

@@ -57,25 +57,21 @@ class LogicityPredictorVis(nn.Module):
             else:
                 self.action_names.append(predicate_name)
 
-        # Process rules (TODO: read rules from rule file)
-        if mode == "expert": # when to stop, fast, slow
-            pass
-        else: # when to stop
-            pass
-
         # Build node concept predictor
-        self.multilabel_classifier = nn.Sequential(
+        self.node_channels = len(self.node_concept_names)*256
+        self.node_concept_predictor = nn.Sequential(
             nn.Linear(self.img_feature_channels, 512),
             nn.ReLU(),
             nn.Linear(512, 256),
             nn.ReLU(),
-            nn.Linear(256, len(self.node_concept_names)),
+            nn.Linear(256, self.node_channels),
             nn.Sigmoid(),
         )
 
         # Build edge concept predictor
-        # node attributes used for edge prediction (w/ priority): concepts + bbox + direction
-        self.node_channels = len(self.node_concept_names) + 4 + 4
+        # node attributes used for edge prediction: bbox + direction
+        self.bbox_channels = 4 + 4
+        self.BBOX_POS_MAX = 1024
         # HigherPri can be directly calc by priority in nodes, no need to predict
         assert "HigherPri" in self.edge_concept_names
         self.edge_channels = len(self.edge_concept_names) - 1
@@ -85,7 +81,7 @@ class LogicityPredictorVis(nn.Module):
         else:
             pass
         self.edge_predictor = nn.Sequential(
-            nn.Linear(self.node_channels, 256),
+            nn.Linear(self.bbox_channels, 256),
             nn.ReLU(),
             nn.Linear(256, 64),
             nn.ReLU(),
@@ -100,16 +96,8 @@ class LogicityPredictorVis(nn.Module):
             nn.Linear(128, self.node_channels*self.action_channels)
         ) # A neural network that maps edge features edge_attr of shape [-1, num_edge_features] to shape [-1, in_channels * out_channels]
         self.gnn = NNConv(in_channels=self.node_channels, out_channels=self.action_channels, nn=self.edge_processor) # don't support batch operation
-        self.action_softmax = nn.Softmax(dim=-1)
 
-        # Prepare for rule constraint
-        self.node_concept_idx_dict = {}
-        self.edge_concept_idx_dict = {}
-        for i, node_concept in enumerate(self.node_concept_names):
-            self.node_concept_idx_dict[node_concept] = i
-        for i, edge_concept in enumerate(self.edge_concept_names):
-            self.edge_concept_idx_dict[edge_concept] = i
-        
+
     def forward(self, batch_imgs, batch_bboxes, batch_directions, batch_priorities):
         device = batch_imgs.device
         B = batch_imgs.shape[0]
@@ -135,11 +123,11 @@ class LogicityPredictorVis(nn.Module):
         roi_features = roi_features.view(B, N, roi_features.shape[1]) # B x N x C_img
         
         # Predict node concepts
-        bbox_concepts = self.multilabel_classifier(roi_features)
+        node_concepts = self.node_concept_predictor(roi_features) # B x N x (concept_num x 256)
         
         # Create scene graph (node:(concept, bbox, direction, priority))
-        # 1. concat node attributes (except for priority)
-        node_attributes = torch.cat([bbox_concepts, batch_bboxes, batch_directions], dim=-1) # B x N x C_node
+        # 1. concat node attributes use for edge prediction (bbox, direction)
+        node_attributes = torch.cat([batch_bboxes/self.BBOX_POS_MAX, batch_directions], dim=-1) # B x N x (4+4)
         # 2. prepare edge idxs
         edge_idxs = []
         for i in range(N):
@@ -161,14 +149,7 @@ class LogicityPredictorVis(nn.Module):
         edge_attributes = torch.cat([edge_attributes, higher_pri.unsqueeze(-1)], dim=-1) # B x (N x (N-1)) x (C_edge+1)
 
         # Predict actions
-        next_actions = self.gnn(node_attributes[0], edge_idxs, edge_attributes[0])
-        next_actions = self.action_softmax(next_actions)
-
-        # Use rules to constraint actions
-        if mode == "expert":
-            pass
-        else:
-            pass
+        next_actions = self.gnn(node_concepts[0], edge_idxs, edge_attributes[0])
 
         return next_actions
     
@@ -176,6 +157,7 @@ def compute_action_acc(pred, label):
     pred = CPU(pred)
     label = CPU(label)
     pred = np.argmax(pred, axis=-1)
+    label = np.argmax(label, axis=-1)
     acc = np.sum(pred == label) / len(label)
     # print(pred, label, acc)
     return acc
@@ -187,23 +169,24 @@ if __name__ == "__main__":
     model = LogicityPredictorVis(mode)
     model = CUDA(model)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    optimizer = torch.optim.Adam(model.parameters(), lr=5*1e-6)
 
     # split into train and test set
     dataset = VisDataset(vis_dataset_path, batch_size=1)
     train_size = int(len(dataset) * 0.8)
     test_size = len(dataset) - train_size
     train_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, test_size])
-    
+
     loss_ce = nn.CrossEntropyLoss()
     for epoch in range(100):
         loss_train, loss_test = 0., 0.
         acc_train, acc_test = 0., 0.
 
         for batch in tqdm(train_dataset):
-            gt_actions = CUDA(batch["next_actions"].flatten(0))
+            gt_actions = CUDA(batch["next_actions"][0])
             pred_actions = model(CUDA(batch["imgs"]), CUDA(batch["bboxes"]), CUDA(batch["directions"]), CUDA(batch["priorities"]))
             loss_actions = loss_ce(pred_actions, gt_actions)
+
             loss = loss_actions
             loss.backward()
             optimizer.step()
@@ -211,7 +194,7 @@ if __name__ == "__main__":
             loss_train += loss.item()
             acc = compute_action_acc(pred_actions, gt_actions)
             acc_train += acc
-        
+
         loss_train /= len(train_dataset)
         acc_train /= len(train_dataset)
         print("Epoch: {},Training Loss: {:.4f}, Acc: {:.4f}".format(
@@ -220,7 +203,7 @@ if __name__ == "__main__":
         # evaluate the accuracy and loss on test set
         with torch.no_grad():
             for batch in tqdm(test_dataset):
-                gt_actions = CUDA(batch["next_actions"].flatten(0))
+                gt_actions = CUDA(batch["next_actions"][0])
                 pred_actions = model(CUDA(batch["imgs"]), CUDA(batch["bboxes"]), CUDA(batch["directions"]), CUDA(batch["priorities"]))
                 loss_actions = loss_ce(pred_actions, gt_actions)
                 loss = loss_actions
