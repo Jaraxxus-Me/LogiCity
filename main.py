@@ -321,9 +321,12 @@ def create_vis_dataset(args, logger):
         vis_dataset: {
             'World0_step0001': {
                 'Image_path': 'vis_dataset/easy_1k/easy_1k_0_imgs/step_0001.png',
-                'Bboxes': {0: (280, 424, 287, 431), 1: (576, 680, 583, 687), ...}
-                'Types': {0: 'Car', 1: 'Pedestrian', ...}
-                'Next_actions': {0: 2, 1: 1, ...} (0: Slow, 1: Normal, 2: Fast, 3: Stop)
+                'Bboxes': {0: (280, 424, 287, 431), 1: (576, 680, 583, 687), ...},
+                'Types': {0: 'Car', 1: 'Pedestrian', ...},
+                'Detailed_types': {0: 'normal_car', 1: 'old', ...},
+                'Priorities': {0: 1, 1: 3, ...},
+                'Directions': {0: 'left', 1: 'right', ...},
+                'Next_actions': {0: 2, 1: 1, ...}, (0: Slow, 1: Normal, 2: Fast, 3: Stop)
             },
             ...
         }
