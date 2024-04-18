@@ -186,17 +186,16 @@ if __name__ == "__main__":
     model = CUDA(model)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.9)
 
     # split into train and test set
     dataset = VisDataset(vis_dataset_path, batch_size=1)
     train_size = int(len(dataset) * 0.8)
     test_size = len(dataset) - train_size
     train_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, test_size])
-
     loss_ce = nn.CrossEntropyLoss()
 
     wandb.watch(model)
-    acc_test_best = -1
     for epoch in range(epochs):
         loss_train, loss_test = 0., 0.
         acc_train, acc_test = 0., 0.
@@ -210,6 +209,7 @@ if __name__ == "__main__":
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
+            # scheduler.step()
             loss_train += loss.item()
             acc = compute_action_acc(pred_actions, gt_actions)
             acc_train += acc
@@ -244,7 +244,12 @@ if __name__ == "__main__":
             'acc_test': acc_test,
         })
 
-        if acc_test > acc_test_best and (epoch + 1) % 5 == 0:
-            acc_test_best = acc_test
-            wandb.save("vis_input_weights/baseline_lr{}_epoch{}.pth".format(lr, epoch))
+        if (epoch + 1) % 5 == 0:
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'loss': loss_train,
+            }, "vis_input_weights/baseline_lr{}_epoch{}_valacc{:.3f}.pth".format(lr, epoch, acc_test))
+
     wandb.finish()
