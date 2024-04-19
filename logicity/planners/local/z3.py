@@ -111,7 +111,7 @@ class Z3Planner(LocalPlanner):
         e = time.time()
         local_world_matrix = world_matrix.clone()
         local_intersections = intersect_matrix.clone()
-        ego_agent, partial_agents, partial_world, partial_intersections = \
+        ego_agent, partial_agents, partial_world, partial_intersections, local2global_layer_id_map = \
             self.break_world_matrix(local_world_matrix, agents, local_intersections, layerid2listid)
         logger.info("Break world time: {}".format(time.time()-e))
         # 2. Choose between multi-processing and looping
@@ -137,7 +137,8 @@ class Z3Planner(LocalPlanner):
             for ego_name in agent_keys:
                 result = solve_sub_problem(ego_name, ego_agent[ego_name].action_mapping, ego_agent[ego_name].action_dist,
                                         self.rule_tem, self.entity_types, self.predicates, self.z3_vars,
-                                        partial_agents[ego_name], partial_world[ego_name], partial_intersections[ego_name])
+                                        partial_agents[ego_name], partial_world[ego_name], partial_intersections[ego_name],
+                                        local2global_layer_id_map[ego_name])
                 combined_results.update(result)
 
         e2 = time.time()
@@ -178,6 +179,7 @@ class Z3Planner(LocalPlanner):
         partial_agents = {}
         partial_world = {}
         partial_intersection = {}
+        local2global_layer_id_map = {}
         for agent in agents:
             ego_name = "{}_{}".format(agent.type, agent.layer_id)
             ego_agent[ego_name] = agent
@@ -196,6 +198,7 @@ class Z3Planner(LocalPlanner):
             partial_world[ego_name] = partial_world_squeezed
             partial_intersection[ego_name] = partial_intersections
             partial_agent = {}
+            local2global_layer_id_map[ego_name] = {}
             for layer_id in range(partial_world_squeezed.shape[0]):
                 layer = partial_world_squeezed[layer_id]
                 layer_nonzero_int = torch.logical_and(layer != 0, layer == layer.to(torch.int64))
@@ -211,8 +214,9 @@ class Z3Planner(LocalPlanner):
                     partial_agent["ego_{}".format(layer_id)] = PesudoAgent(agent_type, layer_id, other_agent.concepts, other_agent.last_move_dir)
                 else:
                     partial_agent[str(layer_id)] = PesudoAgent(agent_type, layer_id, other_agent.concepts, other_agent.last_move_dir)
+                local2global_layer_id_map[ego_name][layer_id] = non_zero_layer_indices[layer_id]
             partial_agents[ego_name] = partial_agent
-        return ego_agent, partial_agents, partial_world, partial_intersection
+        return ego_agent, partial_agents, partial_world, partial_intersection, local2global_layer_id_map
 
     def format_rule_string(self, rule_str):
         indent_level = 0
@@ -249,7 +253,9 @@ def solve_sub_problem(ego_name,
                       var_names,
                       partial_agents, 
                       partial_world, 
-                      partial_intersections):
+                      partial_intersections,
+                      local2global_layer_id_map):
+    grounding_dic = {}
     # 1. create solver
     local_solver = Solver()
     # 2. create sorts and variables
@@ -280,6 +286,8 @@ def solve_sub_problem(ego_name,
             for entity in local_entities[eval_pred.domain(0).name()]:
                 entity_name = entity.decl().name()
                 value = method(partial_world, partial_intersections, partial_agents, entity_name)
+                global_layer_id = local2global_layer_id_map[int(entity_name.split('_')[-1])]
+                grounding_dic["{}_{}".format(pred_name, global_layer_id)] = bool(value)
                 if value:
                     local_solver.add(eval_pred(entity))
                 else:
@@ -288,9 +296,12 @@ def solve_sub_problem(ego_name,
             # Binary predicate grounding
             for entity1 in local_entities[eval_pred.domain(0).name()]:
                 entity1_name = entity1.decl().name()
+                global_layer_id_1 = local2global_layer_id_map[int(entity1_name.split('_')[-1])]
                 for entity2 in local_entities[eval_pred.domain(1).name()]:
                     entity2_name = entity2.decl().name()
                     value = method(partial_world, partial_intersections, partial_agents, entity1_name, entity2_name)
+                    global_layer_id_2 = local2global_layer_id_map[int(entity2_name.split('_')[-1])]
+                    grounding_dic["{}_{}_{}".format(pred_name, global_layer_id_1, global_layer_id_2)] = bool(value)
                     if value:
                         local_solver.add(eval_pred(entity1, entity2))
                     else:
@@ -324,17 +335,14 @@ def solve_sub_problem(ego_name,
                 if key in action_name:
                     action.append(action_id)
             if len(action)>0:
-                for a in action:
-                    if is_true(model.evaluate(local_predicates[key]["instance"](local_entities["Entity"][0]))):
+                if is_true(model.evaluate(local_predicates[key]["instance"](local_entities["Entity"][0]))):
+                    for a in action:
                         action_dist[a] = 1.0
         # No action specified, use the default action, Normal
         if action_dist.sum() == 0:
             for action_id, action_name in action_mapping.items():
                 if "Normal" in action_name:
                     action_dist[action_id] = 1.0
-
-        agents_actions = {ego_name: action_dist}
-        return agents_actions
     else:
         # No solution means do not exist intersection/agent in the field of view, Normal
         # Interpret the solution to the FOL problem
@@ -345,8 +353,8 @@ def solve_sub_problem(ego_name,
             if "Normal" in action_name:
                 action_dist[action_id] = 1.0
 
-        agents_actions = {ego_name: action_dist}
-        return agents_actions
+    agents_actions = {ego_name: action_dist, "{}_grounding_dic".format(ego_name): grounding_dic}
+    return agents_actions
 
 def split_into_batches(keys, batch_size):
     """Split keys into batches of a given size."""

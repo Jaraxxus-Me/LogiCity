@@ -121,11 +121,6 @@ git checkout vis
 # get the map pkl file
 bash scripts/sim/run_sim_easy.sh
 
-# render the pkl file into image
-python3 tools/pkl2city.py --pkl [path/to/pkl] --ego_id -1
-# or use script
-bash scripts/vis/render_pkl2img_easy.sh
-
 # get the vis dataset
 bash scripts/vis/create_vis_dataset_easy.sh
 

@@ -4,6 +4,7 @@ import torch.nn as nn
 import torchvision
 from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
 from torch_geometric.nn import NNConv
+import numpy as np
 
 
 class LogicityPredictorVis(nn.Module):
@@ -58,21 +59,17 @@ class LogicityPredictorVis(nn.Module):
         # HigherPri can be directly calc by priority in nodes, no need to predict
         assert "HigherPri" in self.edge_concept_names
         self.edge_channels = len(self.edge_concept_names) - 1
-        self.action_channels = len(self.action_names)
-        if mode == "easy":
-            self.max_node_num = 8 # TODO: how to get this num from config file? or just hard code it?
-        else:
-            pass
         self.edge_predictor = nn.Sequential(
-            nn.Linear(self.bbox_channels, 256),
+            nn.Linear(2*self.bbox_channels, 256),
             nn.ReLU(),
             nn.Linear(256, 64),
             nn.ReLU(),
-            nn.Linear(64, (self.max_node_num-1)*self.edge_channels),
+            nn.Linear(64, self.edge_channels),
             nn.Sigmoid(),
         )
 
         # Build action predictor
+        self.action_channels = len(self.action_names)
         self.edge_processor = nn.Sequential(
             nn.Linear(self.edge_channels+1, 128),
             nn.ReLU(),
@@ -112,23 +109,28 @@ class LogicityPredictorVis(nn.Module):
         # 1. concat node attributes use for edge prediction (bbox, direction)
         node_attributes = torch.cat([batch_bboxes/self.BBOX_POS_MAX, batch_directions], dim=-1) # B x N x (4+4)
         # 2. prepare edge idxs
-        edge_idxs = []
-        for i in range(N):
-            for j in range(N):
-                if i == j:
-                    continue
-                else:
-                    edge_idxs.append([i, j])
-        edge_idxs = torch.Tensor(edge_idxs).permute(1, 0).to(torch.int64).to(device)
+        tmp_idx = torch.arange(N)
+        i, j = torch.meshgrid(tmp_idx, tmp_idx, indexing='ij')
+        tmp_mask = (i != j)
+        edge_idxs = torch.stack((i[tmp_mask],j[tmp_mask]),dim=1).T.to(device) # 2 x (N x (N-1))
         # 3. predict edge attributes
-        edge_attributes = self.edge_predictor(node_attributes) # B x N x ((N-1) x C_edge)
-        edge_attributes = edge_attributes.view(B, -1, self.edge_channels) # B x (N x (N-1)) x C_edge
+        node_attributes_paired = torch.zeros(B, N, N-1, 16).to(device)
+        upper_pairing_idxs = torch.triu_indices(N, N, offset=1).to(device)
+        lower_pairing_idxs = torch.tril_indices(N, N, offset=-1).to(device)
+        node_attributes_paired[:, upper_pairing_idxs[0], upper_pairing_idxs[1]-1] = torch.cat([
+            node_attributes[:, upper_pairing_idxs[0]], node_attributes[:, upper_pairing_idxs[1]]
+        ], dim=-1)
+        node_attributes_paired[:, lower_pairing_idxs[0], lower_pairing_idxs[1]] = torch.cat([
+            node_attributes[:, lower_pairing_idxs[0]], node_attributes[:, lower_pairing_idxs[1]]
+        ], dim=-1)
+        node_attributes_paired = node_attributes_paired.view(B, (N*(N-1)), -1)
+        edge_attributes = self.edge_predictor(node_attributes_paired) # B x (N x (N-1)) x C_edge
         # 4. add HigherPri to edge attributes
         pri_mask = (batch_priorities.unsqueeze(2)>batch_priorities.unsqueeze(1)).to(torch.float32)
-        higher_pri = torch.zeros(B, N, N-1)
-        higher_pri[:, :, :N-1] = pri_mask[:, :, :N-1] 
-        higher_pri[:, :, N-1:] = pri_mask[:, :, N:]
-        higher_pri = higher_pri.view(B, -1).to(device)
+        higher_pri = torch.zeros(B, N, N-1).to(device)
+        higher_pri[:, upper_pairing_idxs[0], upper_pairing_idxs[1]-1] = pri_mask[:, upper_pairing_idxs[0], upper_pairing_idxs[1]] 
+        higher_pri[:, lower_pairing_idxs[0], lower_pairing_idxs[1]] = pri_mask[:, lower_pairing_idxs[0], lower_pairing_idxs[1]]
+        higher_pri = higher_pri.view(B, -1)
         edge_attributes = torch.cat([edge_attributes, higher_pri.unsqueeze(-1)], dim=-1) # B x (N x (N-1)) x (C_edge+1)
 
         # Predict actions
