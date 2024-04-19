@@ -50,7 +50,9 @@ class City:
                                                     self.layer_id2agent_list_id, use_multiprocessing=self.use_multi)
         cache_actions = self.convert_action(agent_action_dist)
         current_obs["Agent_actions"] = cache_actions
-        # Then do global action taking acording to the local planning results
+        predicate_groundings = self.get_predicate_groundings(agent_action_dist)
+        current_obs["Predicate_groundings"] = predicate_groundings
+        # Then do global action taking according to the local planning results
         # get occupancy map
         for agent in self.agents:
             # re-initialized agents may update city matrix as well
@@ -263,6 +265,8 @@ class City:
     def convert_action(self, agent_action_dist):
         cache_actions = {}
         for key, value in agent_action_dist.items():
+            if "_grounding_dic" in key:
+                continue
             agent_type, agent_layer = key.split('_')
             # 0: Slow, 1: Normal, 2: Fast, 3: Stop
             action_id = -1
@@ -286,3 +290,24 @@ class City:
             assert action_id != -1
             cache_actions[key] = action_id
         return cache_actions
+
+    def get_predicate_groundings(self, agent_action_dist):
+        groundings = {}
+        agent_num = len(self.agents)
+        for key, value in agent_action_dist.items():
+            if "_grounding_dic" not in key:
+                continue
+            for k, v in value.items():
+                tmp_split = k.split('_')
+                predicate_name = tmp_split[0]
+                layer_id_1 = int(tmp_split[1])
+                if len(tmp_split) == 2:
+                    if predicate_name not in groundings:
+                        groundings[predicate_name] = torch.zeros([agent_num], dtype=torch.bool)
+                    groundings[predicate_name][layer_id_1-BASIC_LAYER] = v
+                elif len(tmp_split) == 3:
+                    if predicate_name not in groundings:
+                        groundings[predicate_name] = torch.zeros([agent_num, agent_num], dtype=torch.bool)
+                    layer_id_2 = int(tmp_split[2])
+                    groundings[predicate_name][layer_id_1-BASIC_LAYER][layer_id_2-BASIC_LAYER] = v
+        return groundings

@@ -321,6 +321,7 @@ def create_vis_dataset(args, logger):
         vis_dataset: {
             'World0_step0001': {
                 'Image_path': 'vis_dataset/easy_1k/easy_1k_0_imgs/step_0001.png',
+                'Predicate_groundings': {"IsAtInter": [0, 1, 0, ...], "HigherPri": [[0, 1, 0, ...],...], ...},
                 'Bboxes': {0: (280, 424, 287, 431), 1: (576, 680, 583, 687), ...},
                 'Types': {0: 'Car', 1: 'Pedestrian', ...},
                 'Detailed_types': {0: 'normal_car', 1: 'old', ...},
@@ -346,7 +347,8 @@ def create_vis_dataset(args, logger):
 
     vis_dataset = dict()
     for world_idx in trange(args.pkl_num):
-        with open(os.path.join(args.log_dir, "{}_{}.pkl".format(args.exp, world_idx)), "rb") as f:
+        pkl_path = os.path.join(args.log_dir, "{}_{}.pkl".format(args.exp, world_idx))
+        with open(pkl_path, "rb") as f:
             cached_observation = pkl.load(f)
         # logger.info(cached_observation)
         last_icons = None
@@ -354,6 +356,7 @@ def create_vis_dataset(args, logger):
             step_name = "World{}_step{:0>4d}".format(world_idx, step)
             vis_dataset[step_name] = {}
             vis_dataset[step_name]["Image_path"] = os.path.join(args.img_dir, "{}_{}_imgs".format(args.exp, world_idx) ,"step_{:0>4d}.png".format(step))
+            vis_dataset[step_name]["Predicate_groundings"] = cached_observation["Time_Obs"][step]["Predicate_groundings"]
             vis_dataset[step_name]["Bboxes"] = {}
             vis_dataset[step_name]["Types"] = {}
             vis_dataset[step_name]["Detailed_types"] = {}
@@ -483,11 +486,15 @@ def create_vis_dataset(args, logger):
 
             if last_icons is None:
                 last_icons = icon_dict_local
+ 
+        # render imgs of one stimulated world
+        pkl2city_imgs(pkl_path, os.path.join(args.img_dir, "{}_{}_imgs".format(args.exp, world_idx)))
 
     if not os.path.exists(args.dataset_dir):
         os.makedirs(args.dataset_dir)
     with open(os.path.join(args.dataset_dir, "{}_{}.pkl".format(args.exp, args.pkl_num)), "wb") as f:
         pkl.dump(vis_dataset, f)
+
 
 if __name__ == '__main__':
     args = parse_arguments()
