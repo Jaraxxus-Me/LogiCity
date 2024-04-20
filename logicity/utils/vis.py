@@ -12,7 +12,6 @@ from scipy.ndimage import label
 from ..core.config import *
 
 
-# priority: normal car 2, normal pedestrain 3
 STATIC_UNARY_PREDICATE_NAME_DICT = {
     "IsAmbulance": {
         "concept_name": "ambulance",
@@ -20,7 +19,6 @@ STATIC_UNARY_PREDICATE_NAME_DICT = {
         "type": "Car",
         "size": 2,
         "gplanner": "A*vg",
-        "priority": 9,
     },
     "IsBus": {
         "concept_name": "bus",
@@ -28,7 +26,6 @@ STATIC_UNARY_PREDICATE_NAME_DICT = {
         "type": "Car",
         "size": 2,
         "gplanner": "A*vg",
-        "priority": 5,
     },
     "IsPolice": {
         "concept_name": "police",
@@ -36,7 +33,6 @@ STATIC_UNARY_PREDICATE_NAME_DICT = {
         "type": "Car",
         "size": 2,
         "gplanner": "A*vg",
-        "priority": 6,
     },
     "IsTiro": {
         "concept_name": "tiro",
@@ -44,7 +40,6 @@ STATIC_UNARY_PREDICATE_NAME_DICT = {
         "type": "Car",
         "size": 2,
         "gplanner": "A*vg",
-        "priority": 4,
     },
     "IsReckless": {
         "concept_name": "reckless",
@@ -52,7 +47,6 @@ STATIC_UNARY_PREDICATE_NAME_DICT = {
         "type": "Car",
         "size": 2,
         "gplanner": "A*vg",
-        "priority": 8,
     },
     "IsOld": {
         "concept_name": "old",
@@ -60,7 +54,6 @@ STATIC_UNARY_PREDICATE_NAME_DICT = {
         "type": "Pedestrian",
         "size": 1,
         "gplanner": "A*",
-        "priority": 7,
     },
     "IsYoung": {
         "concept_name": "young",
@@ -68,7 +61,6 @@ STATIC_UNARY_PREDICATE_NAME_DICT = {
         "type": "Pedestrian",
         "size": 1,
         "gplanner": "A*",
-        "priority": 1,
     },
 }
 

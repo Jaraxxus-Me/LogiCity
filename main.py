@@ -379,6 +379,8 @@ def create_vis_dataset(args, logger):
             # Generate random agents
             agents_list = []
             agent_num = np.random.randint(args.min_agent_num, args.max_agent_num+1)
+            priority_list = np.arange(1, agent_num+1)
+            np.random.shuffle(priority_list)
             for agent_id in range(agent_num):
                 agent = {}
                 agent["id"] = agent_id
@@ -393,7 +395,6 @@ def create_vis_dataset(args, logger):
                     agent["gplanner"] = STATIC_UNARY_PREDICATE_NAME_DICT[concept_name]["gplanner"]
                     agent["concepts"] = {}
                     agent["concepts"]["type"] = STATIC_UNARY_PREDICATE_NAME_DICT[concept_name]["type"]
-                    agent["concepts"]["priority"] = STATIC_UNARY_PREDICATE_NAME_DICT[concept_name]["priority"]
                     agent["concepts"][STATIC_UNARY_PREDICATE_NAME_DICT[concept_name]["concept_name"]] = 1.0
                 elif concept_id >= valid_concept_cnt and concept_id < valid_concept_cnt + 3:
                     agent["class"] = "Private_car"
@@ -401,14 +402,18 @@ def create_vis_dataset(args, logger):
                     agent["gplanner"] = "A*vg"
                     agent["concepts"] = {}
                     agent["concepts"]["type"] = "Car"
-                    agent["concepts"]["priority"] = 2
                 else:
                     agent["class"] = "Pedestrian"
                     agent["size"] = 1
                     agent["gplanner"] = "A*"
                     agent["concepts"] = {}
                     agent["concepts"]["type"] = "Pedestrian"
-                    agent["concepts"]["priority"] = 3
+                if agent["concepts"]["type"] == "Pedestrian":
+                    agent["concepts"]["priority"] = 0
+                else:
+                    agent["concepts"]["priority"] = int(priority_list[0])
+                    priority_list = np.delete(priority_list, 0)
+
                 agents_list.append(agent)
             with open(tmp_agent_yaml_file, "w") as f:
                 yaml.dump({"agents": agents_list}, f)
