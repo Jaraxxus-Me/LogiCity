@@ -142,43 +142,34 @@ class VisDataset(torch.utils.data.Dataset):
         return self.num_batches
     
     def __getitem__(self, idx):
-        step_names = self.vis_dataset_list[idx*self.batch_size:(idx+1)*self.batch_size]
-        imgs = []
-        predicates = []
-        bboxes = []
-        types = []
-        detailed_types = []
-        priorities = []
-        directions = []
-        next_actions = []
-        for step_name in step_names:
-            imgs.append(self.read_img(self.vis_dataset[step_name]["Image_path"]))
-            predicates.append(self.vis_dataset[step_name]["Predicate_groundings"])
-            bboxes.append(list(self.vis_dataset[step_name]["Bboxes"].values()))
-            types.append(list(self.vis_dataset[step_name]["Types"].values()))
-            detailed_types.append(list(self.vis_dataset[step_name]["Detailed_types"].values()))
-            priorities.append(list(self.vis_dataset[step_name]["Priorities"].values()))
-            direction_name_list = list(self.vis_dataset[step_name]["Directions"].values())
-            direction_tensor_list = []
-            for direction_name in direction_name_list:
-                direction_tensor_list.append(self.direction_dict[direction_name])
-            directions.append(direction_tensor_list)
-            next_actions.append(list(self.vis_dataset[step_name]["Next_actions"].values()))
+        step_name = self.vis_dataset_list[idx]
+        img = self.read_img(self.vis_dataset[step_name]["Image_path"])
+        predicates = self.vis_dataset[step_name]["Predicate_groundings"]
+        bboxes = list(self.vis_dataset[step_name]["Bboxes"].values())
+        types = list(self.vis_dataset[step_name]["Types"].values())
+        detailed_types = list(self.vis_dataset[step_name]["Detailed_types"].values())
+        priorities = list(self.vis_dataset[step_name]["Priorities"].values())
+        direction_name_list = list(self.vis_dataset[step_name]["Directions"].values())
+        direction_tensor_list = []
+        for direction_name in direction_name_list:
+            direction_tensor_list.append(self.direction_dict[direction_name])
 
-            if self.gt_vis:
-                output_folder = "gt_vis/{}".format(step_name.split('_')[0])
-                self.gt_visualization(step_name, self.vis_dataset[step_name]["Image_path"], predicates[0], bboxes[0], types[0], output_folder)
+        next_actions = list(self.vis_dataset[step_name]["Next_actions"].values())
 
-        imgs = torch.Tensor(np.array(imgs))
+        if self.gt_vis:
+            output_folder = "gt_vis/{}".format(step_name.split('_')[0])
+            self.gt_visualization(step_name, self.vis_dataset[step_name]["Image_path"], predicates, bboxes, detailed_types, output_folder)
+
+        img = torch.Tensor(np.array(img))
         bboxes = torch.Tensor(np.array(bboxes))
         priorities = torch.Tensor(np.array(priorities))
-        directions = torch.Tensor(np.array(directions))
+        directions = torch.Tensor(np.array(direction_tensor_list))
         next_actions = torch.Tensor(np.array(next_actions)).to(torch.int64)
         next_actions = torch.nn.functional.one_hot(next_actions, num_classes=4).to(torch.float32)
 
         out_dict = {
-            "step_names": step_names,
-            "imgs": imgs,
+            "step_name": step_name,
+            "img": img,
             "predicates": predicates,
             "bboxes": bboxes,
             "types": types,

@@ -5,7 +5,7 @@ log/
 log_rl/
 tb_logs/
 *.gif
-vis*/
+# vis*/
 vis_*
 vis_city/
 vis_city_uav/
@@ -24,3 +24,4 @@ src
 wandb/
 wandb
 tools/vga/data
+gt_vis/

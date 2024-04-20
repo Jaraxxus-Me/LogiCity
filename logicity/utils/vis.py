@@ -12,6 +12,66 @@ from scipy.ndimage import label
 from ..core.config import *
 
 
+# priority: normal car 2, normal pedestrain 3
+STATIC_UNARY_PREDICATE_NAME_DICT = {
+    "IsAmbulance": {
+        "concept_name": "ambulance",
+        "class": "Private_car",
+        "type": "Car",
+        "size": 2,
+        "gplanner": "A*vg",
+        "priority": 9,
+    },
+    "IsBus": {
+        "concept_name": "bus",
+        "class": "Private_car",
+        "type": "Car",
+        "size": 2,
+        "gplanner": "A*vg",
+        "priority": 5,
+    },
+    "IsPolice": {
+        "concept_name": "police",
+        "class": "Private_car",
+        "type": "Car",
+        "size": 2,
+        "gplanner": "A*vg",
+        "priority": 6,
+    },
+    "IsTiro": {
+        "concept_name": "tiro",
+        "class": "Private_car",
+        "type": "Car",
+        "size": 2,
+        "gplanner": "A*vg",
+        "priority": 4,
+    },
+    "IsReckless": {
+        "concept_name": "reckless",
+        "class": "Private_car",
+        "type": "Car",
+        "size": 2,
+        "gplanner": "A*vg",
+        "priority": 8,
+    },
+    "IsOld": {
+        "concept_name": "old",
+        "class": "Pedestrian",
+        "type": "Pedestrian",
+        "size": 1,
+        "gplanner": "A*",
+        "priority": 7,
+    },
+    "IsYoung": {
+        "concept_name": "young",
+        "class": "Pedestrian",
+        "type": "Pedestrian",
+        "size": 1,
+        "gplanner": "A*",
+        "priority": 1,
+    },
+}
+
 DETAILED_TYPE_MAP = {
     "tiro": "Tiro", 
     "bus": "Bus", 
@@ -565,24 +625,12 @@ def gridmap2img_agents(gridmap, gridmap_, icon_dict, static_map, last_icons=None
     else:
         return current_map, icon_dict_local
 
-def pkl2city_imgs(pkl_path, output_folder, ego_id=-1, crop=[0, 1024, 0, 1024]):
+def pkl2city_imgs(data, icon_dict, output_folder, ego_id=-1, crop=[0, 1024, 0, 1024]):
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
-    icon_dict = {}
-    for key in PATH_DICT.keys():
-        if isinstance(PATH_DICT[key], list):
-            raw_img = [cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2RGB) for path in PATH_DICT[key]]
-            resized_img = [resize_with_aspect_ratio(img, ICON_SIZE_DICT[key]) for img in raw_img]
-            icon_dict[key] = resized_img
-        else:
-            raw_img = cv2.cvtColor(cv2.imread(PATH_DICT[key]), cv2.COLOR_BGR2RGB)
-            resized_img = resize_with_aspect_ratio(raw_img, ICON_SIZE_DICT[key])
-            icon_dict[key] = resized_img
 
-    with open(pkl_path, "rb") as f:
-        data = pkl.load(f)
-        obs = data["Time_Obs"]
-        agents = data["Static Info"]["Agents"]
+    obs = data["Time_Obs"]
+    agents = data["Static Info"]["Agents"]
 
     print(obs.keys())
     time_steps = list(obs.keys())

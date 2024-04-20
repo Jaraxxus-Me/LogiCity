@@ -121,7 +121,7 @@ git checkout vis
 # get the map pkl file
 bash scripts/sim/run_sim_easy.sh
 
-# get the vis dataset
+# get the vis dataset for scratch
 bash scripts/vis/create_vis_dataset_easy.sh
 
 # train the model with vis dataset

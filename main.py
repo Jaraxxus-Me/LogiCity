@@ -26,7 +26,7 @@ def parse_arguments():
     parser.add_argument('--vis', action='store_true', help='Visualize the city.')
     # seed
     parser.add_argument('--seed', type=int, default=2)
-    parser.add_argument('--max-steps', type=int, default=200)
+    parser.add_argument('--max_steps', type=int, default=200)
     # RL
     parser.add_argument('--collect_only', action='store_true', help='Only collect expert data.')
     parser.add_argument('--use_gym', action='store_true', help='In gym mode, we can use RL alg. to control certain agents.')
@@ -34,11 +34,13 @@ def parse_arguments():
     parser.add_argument('--config', default='config/tasks/sim/easy.yaml', help='Configure file for this RL exp.')
     parser.add_argument('--checkpoint_path', default=None, help='Path to the trained model.')
     # vis_dataset
-    parser.add_argument('--create_vis_dataset', action='store_true', help='Create vis dataset from sim pkl.')
-    parser.add_argument('--pkl_num', type=int, default=5)
-    parser.add_argument('--dataset_dir', type=str, default="./vis_dataset/easy_1k")
-    parser.add_argument('--img_dir', type=str, default="./vis_dataset/easy_1k")
-
+    parser.add_argument('--create_vis_dataset', action='store_true', help='Create vis dataset from scratch.')
+    parser.add_argument('--train_world_num', type=int, default=20)
+    parser.add_argument('--val_world_num', type=int, default=5)
+    parser.add_argument('--test_world_num', type=int, default=5)
+    parser.add_argument('--min_agent_num', type=int, default=5)
+    parser.add_argument('--max_agent_num', type=int, default=8)
+    parser.add_argument('--dataset_dir', type=str, default="./vis_dataset/easy_200")
     return parser.parse_args()
 
 def load_config(config_path):
@@ -332,6 +334,27 @@ def create_vis_dataset(args, logger):
             ...
         }
     """
+    if not os.path.exists(args.dataset_dir):
+        os.makedirs(args.dataset_dir)
+    world_num_dict = {
+        "train": args.train_world_num,
+        "val": args.val_world_num,
+        "test": args.test_world_num,
+    }
+    config = load_config(args.config)
+    tmp_agent_yaml_file = "{}/tmp_agents.yaml".format(args.dataset_dir)
+    simulation_config = config["simulation"]
+    simulation_config["agent_yaml_file"] = tmp_agent_yaml_file    
+
+    # prepare agent concepts to choose from
+    ontology_yaml_file = config["simulation"]["ontology_yaml_file"]
+    with open(ontology_yaml_file, 'r') as file:
+        ontology_config = yaml.load(file, Loader=yaml.Loader)
+    valid_concept_names = []
+    for predicate in ontology_config["Predicates"]:
+        predicate_name = list(predicate.keys())[0]
+        if predicate_name in STATIC_UNARY_PREDICATE_NAME_DICT:
+            valid_concept_names.append(predicate_name)
 
     # prepare icon img dict
     icon_dict = {}
@@ -345,155 +368,205 @@ def create_vis_dataset(args, logger):
             resized_img = resize_with_aspect_ratio(raw_img, ICON_SIZE_DICT[key])
             icon_dict[key] = resized_img
 
-    vis_dataset = dict()
-    for world_idx in trange(args.pkl_num):
-        pkl_path = os.path.join(args.log_dir, "{}_{}.pkl".format(args.exp, world_idx))
-        with open(pkl_path, "rb") as f:
-            cached_observation = pkl.load(f)
-        # logger.info(cached_observation)
-        last_icons = None
-        for step in trange(1, args.max_steps):
-            step_name = "World{}_step{:0>4d}".format(world_idx, step)
-            vis_dataset[step_name] = {}
-            vis_dataset[step_name]["Image_path"] = os.path.join(args.img_dir, "{}_{}_imgs".format(args.exp, world_idx) ,"step_{:0>4d}.png".format(step))
-            vis_dataset[step_name]["Predicate_groundings"] = cached_observation["Time_Obs"][step]["Predicate_groundings"]
-            vis_dataset[step_name]["Bboxes"] = {}
-            vis_dataset[step_name]["Types"] = {}
-            vis_dataset[step_name]["Detailed_types"] = {}
-            vis_dataset[step_name]["Priorities"] = {}
-            vis_dataset[step_name]["Directions"] = {}
-            vis_dataset[step_name]["Next_actions"] = {}
-            time_obs_world = cached_observation["Time_Obs"][step]["World"].numpy()
-            time_obs_world_ = cached_observation["Time_Obs"][step+1]["World"].numpy()
-            static_info_agents = list(cached_observation["Static Info"]["Agents"].values())
-            agent_layer = time_obs_world[BASIC_LAYER:]
-            agent_layer_ = time_obs_world_[BASIC_LAYER:]
-            resized_grid = np.repeat(np.repeat(agent_layer, SCALE, axis=1), SCALE, axis=2)
-            resized_grid_ = np.repeat(np.repeat(agent_layer_, SCALE, axis=1), SCALE, axis=2)
-            # use icon_dict_local for the first time when last_icons is None
-            icon_dict_local = {"icon": {}, "pos": {}}
-            for agent_idx in range(resized_grid.shape[0]):
-                # Get type and priority of agent 
-                agent_type = static_info_agents[agent_idx]["concepts"]["type"]
-                vis_dataset[step_name]["Types"][agent_idx] = agent_type
-                vis_dataset[step_name]["Priorities"][agent_idx] = static_info_agents[agent_idx]["concepts"]["priority"]
-                # Get detailed type of agent
-                agent_detailed_type = list(set(list(DETAILED_TYPE_MAP.keys())) \
-                                        & set(list(static_info_agents[agent_idx]["concepts"].keys())))
-                if not agent_detailed_type:
+    for stage, world_num in world_num_dict.items():
+        vis_dataset = {}
+
+        # Stimulate several worlds
+        for world_idx in trange(world_num):
+            torch.manual_seed(world_idx)
+            np.random.seed(world_idx)
+
+            # Generate random agents
+            agents_list = []
+            agent_num = np.random.randint(args.min_agent_num, args.max_agent_num+1)
+            for agent_id in range(agent_num):
+                agent = {}
+                agent["id"] = agent_id
+                # 3 for normal cars, 2 for normal pedestrians
+                valid_concept_cnt = len(valid_concept_names)
+                choice_range = valid_concept_cnt + 3 + 2
+                concept_id = np.random.randint(choice_range)
+                if concept_id < valid_concept_cnt:
+                    concept_name = valid_concept_names[concept_id]
+                    agent["class"] = STATIC_UNARY_PREDICATE_NAME_DICT[concept_name]["class"]
+                    agent["size"] = STATIC_UNARY_PREDICATE_NAME_DICT[concept_name]["size"]
+                    agent["gplanner"] = STATIC_UNARY_PREDICATE_NAME_DICT[concept_name]["gplanner"]
+                    agent["concepts"] = {}
+                    agent["concepts"]["type"] = STATIC_UNARY_PREDICATE_NAME_DICT[concept_name]["type"]
+                    agent["concepts"]["priority"] = STATIC_UNARY_PREDICATE_NAME_DICT[concept_name]["priority"]
+                    agent["concepts"][STATIC_UNARY_PREDICATE_NAME_DICT[concept_name]["concept_name"]] = 1.0
+                elif concept_id >= valid_concept_cnt and concept_id < valid_concept_cnt + 3:
+                    agent["class"] = "Private_car"
+                    agent["size"] = 2
+                    agent["gplanner"] = "A*vg"
+                    agent["concepts"] = {}
+                    agent["concepts"]["type"] = "Car"
+                    agent["concepts"]["priority"] = 2
+                else:
+                    agent["class"] = "Pedestrian"
+                    agent["size"] = 1
+                    agent["gplanner"] = "A*"
+                    agent["concepts"] = {}
+                    agent["concepts"]["type"] = "Pedestrian"
+                    agent["concepts"]["priority"] = 3
+                agents_list.append(agent)
+            with open(tmp_agent_yaml_file, "w") as f:
+                yaml.dump({"agents": agents_list}, f)
+
+            # Main simulation loop
+            city, cached_observation = CityLoader.from_yaml(**simulation_config)
+            steps = 0
+            while steps < args.max_steps:
+                logger.info("Simulating Step_{}...".format(steps))
+                s = time.time()
+                time_obs = city.update()
+                e = time.time()
+                logger.info("Time spent: {}".format(e-s))
+                steps += 1
+                cached_observation["Time_Obs"][steps] = time_obs
+
+            # Render imgs of current stimulated world
+            pkl2city_imgs(cached_observation, icon_dict, os.path.join(args.dataset_dir, "{}/world{}_agent{}_imgs".format(stage, world_idx, agent_num)))
+
+            # Repack the pkl of current stimulated world
+            last_icons = None
+            for step in trange(1, args.max_steps):
+                step_name = "World{}_step{:0>4d}".format(world_idx, step)
+                vis_dataset[step_name] = {}
+                vis_dataset[step_name]["Image_path"] = os.path.join(args.dataset_dir, "{}/world{}_agent{}_imgs".format(stage, world_idx, agent_num) ,"step_{:0>4d}.png".format(step))
+                vis_dataset[step_name]["Predicate_groundings"] = cached_observation["Time_Obs"][step]["Predicate_groundings"]
+                vis_dataset[step_name]["Bboxes"] = {}
+                vis_dataset[step_name]["Types"] = {}
+                vis_dataset[step_name]["Detailed_types"] = {}
+                vis_dataset[step_name]["Priorities"] = {}
+                vis_dataset[step_name]["Directions"] = {}
+                vis_dataset[step_name]["Next_actions"] = {}
+                time_obs_world = cached_observation["Time_Obs"][step]["World"].numpy()
+                time_obs_world_ = cached_observation["Time_Obs"][step+1]["World"].numpy()
+                static_info_agents = list(cached_observation["Static Info"]["Agents"].values())
+                agent_layer = time_obs_world[BASIC_LAYER:]
+                agent_layer_ = time_obs_world_[BASIC_LAYER:]
+                resized_grid = np.repeat(np.repeat(agent_layer, SCALE, axis=1), SCALE, axis=2)
+                resized_grid_ = np.repeat(np.repeat(agent_layer_, SCALE, axis=1), SCALE, axis=2)
+                # use icon_dict_local for the first time when last_icons is None
+                icon_dict_local = {"icon": {}, "pos": {}}
+                for agent_idx in range(resized_grid.shape[0]):
+                    # Get type and priority of agent 
+                    agent_type = static_info_agents[agent_idx]["concepts"]["type"]
+                    vis_dataset[step_name]["Types"][agent_idx] = agent_type
+                    vis_dataset[step_name]["Priorities"][agent_idx] = static_info_agents[agent_idx]["concepts"]["priority"]
+                    # Get detailed type of agent
+                    agent_detailed_type = list(set(list(DETAILED_TYPE_MAP.keys())) \
+                                            & set(list(static_info_agents[agent_idx]["concepts"].keys())))
+                    if not agent_detailed_type:
+                        if agent_type == "Car":
+                            agent_detailed_type = "normal_car"
+                        else:
+                            agent_detailed_type = "normal_pedestrian"
+                    else:
+                        agent_detailed_type = agent_detailed_type[0]
+                    vis_dataset[step_name]["Detailed_types"][agent_idx] = agent_detailed_type
+                    # Get bbox of agent icon (get direction by the way)
+                    # 1. get direction
+                    local_layer = resized_grid[agent_idx]
+                    local_layer_ = resized_grid_[agent_idx]
+                    left, top, right, bottom = get_pos(local_layer)
+                    left_, top_, right_, bottom_ = get_pos(local_layer_)
+                    direction = get_direction(left, left_, top, top_)
+                    vis_dataset[step_name]["Directions"][agent_idx] = direction
+                    # 2. get position
+                    pos = (left, top, right, bottom)
+                    # 3. get icon img array
+                    if agent_detailed_type.startswith('normal_'):
+                        icon_list = icon_dict[agent_type].copy()
+                        icon_id = agent_idx%len(icon_list)
+                        icon = icon_list[icon_id]
+                    else:
+                        icon = icon_dict[DETAILED_TYPE_MAP[agent_detailed_type]]
+                    if last_icons is None:
+                        icon_img = Image.fromarray(icon)
+                        icon_dict_local["icon"]["{}_{}".format(agent_type, agent_idx)] = [icon_img]
+                        icon_bbox_left_last = None
+                        icon_bbox_top_last = None
+                    else:
+                        if direction == "none":
+                            icon_img = last_icons["icon"]["{}_{}".format(agent_type, agent_idx)][1]
+                            icon_bbox_left_last = last_icons["pos"]["{}_{}".format(agent_type, agent_idx)][0]
+                            icon_bbox_top_last = last_icons["pos"]["{}_{}".format(agent_type, agent_idx)][1]
+                        else:
+                            icon_img = last_icons["icon"]["{}_{}".format(agent_type, agent_idx)][0]
+                    # 4. get street type and rotation settings
                     if agent_type == "Car":
-                        agent_detailed_type = "normal_car"
+                        street_type = get_street_type(resized_grid, pos)
+                        # define rotation angles for directions
+                        rotation_angles = {'up': 0, 'right': 270, 'down': 180, 'left': 90, 'none': 0}
                     else:
-                        agent_detailed_type = "normal_pedestrian"
-                else:
-                    agent_detailed_type = agent_detailed_type[0]
-                vis_dataset[step_name]["Detailed_types"][agent_idx] = agent_detailed_type
-                # Get bbox of agent icon (get direction by the way)
-                # 1. get direction
-                local_layer = resized_grid[agent_idx]
-                local_layer_ = resized_grid_[agent_idx]
-                left, top, right, bottom = get_pos(local_layer)
-                left_, top_, right_, bottom_ = get_pos(local_layer_)
-                direction = get_direction(left, left_, top, top_)
-                vis_dataset[step_name]["Directions"][agent_idx] = direction
-                # 2. get position
-                pos = (left, top, right, bottom)
-                # 3. get icon img array
-                if agent_detailed_type.startswith('normal_'):
-                    icon_list = icon_dict[agent_type].copy()
-                    icon_id = agent_idx%len(icon_list)
-                    icon = icon_list[icon_id]
-                else:
-                    icon = icon_dict[DETAILED_TYPE_MAP[agent_detailed_type]]
+                        street_type = None
+                        rotation_angles = {'up': 0, 'right': 0, 'down': -1, 'left': -1, 'none': 0}
+                    # 5. rotate the icon image based on the direction
+                    rotated_icon = rotate_image(icon_img, rotation_angles[direction])
+                    # 6. calc icon bbox
+                    if agent_type == "Car":
+                        if direction == 'up':
+                            icon_bbox_left = (left+right)//2 - rotated_icon.width//2
+                            if street_type == "v" or street_type is None:
+                                icon_bbox_top = top
+                            else:
+                                icon_bbox_top = bottom - rotated_icon.height
+                        elif direction == 'right':
+                            if street_type == "h" or street_type is None:
+                                icon_bbox_left = right - rotated_icon.width
+                            else:
+                                icon_bbox_left = left
+                            icon_bbox_top = (top+bottom)//2 - rotated_icon.height//2
+                        elif direction == 'down':
+                            icon_bbox_left = (left+right)//2 - rotated_icon.width//2
+                            if street_type == "v" or street_type is None:
+                                icon_bbox_top = bottom - rotated_icon.height
+                            else:
+                                icon_bbox_top = top
+                        elif direction == 'left':
+                            if street_type == "h" or street_type is None:
+                                icon_bbox_left = left
+                            else:
+                                icon_bbox_left = right - rotated_icon.width
+                            icon_bbox_top = (top+bottom)//2 - rotated_icon.height//2
+                        elif direction == 'none':
+                            if icon_bbox_left_last is not None:
+                                icon_bbox_left = icon_bbox_left_last
+                                icon_bbox_top = icon_bbox_top_last
+                            else:
+                                icon_bbox_left = left
+                                icon_bbox_top = top
+                    elif agent_type == "Pedestrian":
+                        if direction == "none":
+                            if icon_bbox_left_last is not None:
+                                icon_bbox_left = icon_bbox_left_last
+                                icon_bbox_top = icon_bbox_top_last
+                            else:
+                                icon_bbox_left = left
+                                icon_bbox_top = top
+                        else:
+                            icon_bbox_left = (left+right)//2 - rotated_icon.width//2
+                            icon_bbox_top = (top+bottom)//2 - rotated_icon.height//2
+                    icon_bbox_right = icon_bbox_left + rotated_icon.width
+                    icon_bbox_bottom = icon_bbox_top + rotated_icon.height
+                    # 7. update last_icons
+                    if last_icons is None:
+                        icon_dict_local["icon"]["{}_{}".format(agent_type, agent_idx)].append(rotated_icon)
+                        icon_dict_local["pos"]["{}_{}".format(agent_type, agent_idx)] = (icon_bbox_left, icon_bbox_top)
+                    else:
+                        last_icons["icon"]["{}_{}".format(agent_type, agent_idx)][1] = rotated_icon
+                        last_icons["pos"]["{}_{}".format(agent_type, agent_idx)] = (icon_bbox_left, icon_bbox_top)
+
+                    vis_dataset[step_name]["Bboxes"][agent_idx] = (icon_bbox_left, icon_bbox_top, icon_bbox_right, icon_bbox_bottom)
+                    vis_dataset[step_name]["Next_actions"][agent_idx] = list(cached_observation["Time_Obs"][step]["Agent_actions"].values())[agent_idx]
+
                 if last_icons is None:
-                    icon_img = Image.fromarray(icon)
-                    icon_dict_local["icon"]["{}_{}".format(agent_type, agent_idx)] = [icon_img]
-                    icon_bbox_left_last = None
-                    icon_bbox_top_last = None
-                else:
-                    if direction == "none":
-                        icon_img = last_icons["icon"]["{}_{}".format(agent_type, agent_idx)][1]
-                        icon_bbox_left_last = last_icons["pos"]["{}_{}".format(agent_type, agent_idx)][0]
-                        icon_bbox_top_last = last_icons["pos"]["{}_{}".format(agent_type, agent_idx)][1]
-                    else:
-                        icon_img = last_icons["icon"]["{}_{}".format(agent_type, agent_idx)][0]
-                # 4. get street type and rotation settings
-                if agent_type == "Car":
-                    street_type = get_street_type(resized_grid, pos)
-                    # define rotation angles for directions
-                    rotation_angles = {'up': 0, 'right': 270, 'down': 180, 'left': 90, 'none': 0}
-                else:
-                    street_type = None
-                    rotation_angles = {'up': 0, 'right': 0, 'down': -1, 'left': -1, 'none': 0}
-                # 5. rotate the icon image based on the direction
-                rotated_icon = rotate_image(icon_img, rotation_angles[direction])
-                # 6. calc icon bbox
-                if agent_type == "Car":
-                    if direction == 'up':
-                        icon_bbox_left = (left+right)//2 - rotated_icon.width//2
-                        if street_type == "v" or street_type is None:
-                            icon_bbox_top = top
-                        else:
-                            icon_bbox_top = bottom - rotated_icon.height
-                    elif direction == 'right':
-                        if street_type == "h" or street_type is None:
-                            icon_bbox_left = right - rotated_icon.width
-                        else:
-                            icon_bbox_left = left
-                        icon_bbox_top = (top+bottom)//2 - rotated_icon.height//2
-                    elif direction == 'down':
-                        icon_bbox_left = (left+right)//2 - rotated_icon.width//2
-                        if street_type == "v" or street_type is None:
-                            icon_bbox_top = bottom - rotated_icon.height
-                        else:
-                            icon_bbox_top = top
-                    elif direction == 'left':
-                        if street_type == "h" or street_type is None:
-                            icon_bbox_left = left
-                        else:
-                            icon_bbox_left = right - rotated_icon.width
-                        icon_bbox_top = (top+bottom)//2 - rotated_icon.height//2
-                    elif direction == 'none':
-                        if icon_bbox_left_last is not None:
-                            icon_bbox_left = icon_bbox_left_last
-                            icon_bbox_top = icon_bbox_top_last
-                        else:
-                            icon_bbox_left = left
-                            icon_bbox_top = top
-                elif agent_type == "Pedestrian":
-                    if direction == "none":
-                        if icon_bbox_left_last is not None:
-                            icon_bbox_left = icon_bbox_left_last
-                            icon_bbox_top = icon_bbox_top_last
-                        else:
-                            icon_bbox_left = left
-                            icon_bbox_top = top
-                    else:
-                        icon_bbox_left = (left+right)//2 - rotated_icon.width//2
-                        icon_bbox_top = (top+bottom)//2 - rotated_icon.height//2
-                icon_bbox_right = icon_bbox_left + rotated_icon.width
-                icon_bbox_bottom = icon_bbox_top + rotated_icon.height
-                # 7. update last_icons
-                if last_icons is None:
-                    icon_dict_local["icon"]["{}_{}".format(agent_type, agent_idx)].append(rotated_icon)
-                    icon_dict_local["pos"]["{}_{}".format(agent_type, agent_idx)] = (icon_bbox_left, icon_bbox_top)
-                else:
-                    last_icons["icon"]["{}_{}".format(agent_type, agent_idx)][1] = rotated_icon
-                    last_icons["pos"]["{}_{}".format(agent_type, agent_idx)] = (icon_bbox_left, icon_bbox_top)
-
-                vis_dataset[step_name]["Bboxes"][agent_idx] = (icon_bbox_left, icon_bbox_top, icon_bbox_right, icon_bbox_bottom)
-                vis_dataset[step_name]["Next_actions"][agent_idx] = list(cached_observation["Time_Obs"][step]["Agent_actions"].values())[agent_idx]
-
-            if last_icons is None:
-                last_icons = icon_dict_local
- 
-        # render imgs of one stimulated world
-        pkl2city_imgs(pkl_path, os.path.join(args.img_dir, "{}_{}_imgs".format(args.exp, world_idx)))
-
-    if not os.path.exists(args.dataset_dir):
-        os.makedirs(args.dataset_dir)
-    with open(os.path.join(args.dataset_dir, "{}_{}.pkl".format(args.exp, args.pkl_num)), "wb") as f:
-        pkl.dump(vis_dataset, f)
+                    last_icons = icon_dict_local
+        
+        with open(os.path.join(args.dataset_dir, "{}/{}_{}.pkl".format(stage, stage, args.exp)), "wb") as f:
+            pkl.dump(vis_dataset, f)
 
 
 if __name__ == '__main__':
