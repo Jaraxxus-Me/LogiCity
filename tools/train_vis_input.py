@@ -134,12 +134,14 @@ def train(args):
         })
 
         if (epoch + 1) % 5 == 0:
+            if not os.path.exists("vis_input_weights/{}/{}".format(mode, args.exp)):
+                os.makedirs("vis_input_weights/{}/{}".format(mode, args.exp))
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'loss': loss_val,
-            }, "vis_input_weights/{}/{}_lr{}_epoch{}_valacc{:.4f}.pth".format(mode, args.exp, lr, epoch, acc_val))
+            }, "vis_input_weights/{}/{}/{}_lr{}_epoch{}_valacc{:.4f}.pth".format(mode, args.exp, args.exp, lr, epoch, acc_val))
             if best_acc < acc_val:
                 best_acc = acc_val
                 torch.save({
@@ -147,7 +149,7 @@ def train(args):
                     'model_state_dict': model.state_dict(),
                     'optimizer_state_dict': optimizer.state_dict(),
                     'loss': loss_val,
-                }, "vis_input_weights/{}/{}_best.pth".format(mode, args.exp))
+                }, "vis_input_weights/{}/{}/{}_best.pth".format(mode, args.exp, args.exp))
 
     wandb.finish()
 

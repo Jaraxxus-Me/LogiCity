@@ -4,6 +4,7 @@
 EXPNAME="easy_200"
 python3 main.py \
         --config config/tasks/sim/easy.yaml \
+        --mode easy \
         --exp ${EXPNAME} \
         --train_world_num 20 \
         --val_world_num 5 \

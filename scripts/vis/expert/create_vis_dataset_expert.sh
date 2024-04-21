@@ -4,6 +4,7 @@
 EXPNAME="expert_200"
 python3 main.py \
         --config config/tasks/sim/expert.yaml \
+        --mode expert \
         --exp ${EXPNAME} \
         --train_world_num 20 \
         --val_world_num 5 \
