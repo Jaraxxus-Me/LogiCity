@@ -13,10 +13,10 @@ from logicity.utils.load import CityLoader
 from logicity.utils.logger import setup_logger
 from logicity.utils.vis import *
 # RL
-# from logicity.rl_agent.alg import *
-# from logicity.utils.gym_wrapper import GymCityWrapper
-# from stable_baselines3.common.vec_env import SubprocVecEnv
-# from logicity.utils.gym_callback import EvalCheckpointCallback
+from logicity.rl_agent.alg import *
+from logicity.utils.gym_wrapper import GymCityWrapper
+from stable_baselines3.common.vec_env import SubprocVecEnv
+from logicity.utils.gym_callback import EvalCheckpointCallback
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Logic-based city simulation.')
@@ -38,8 +38,12 @@ def parse_arguments():
     parser.add_argument('--train_world_num', type=int, default=20)
     parser.add_argument('--val_world_num', type=int, default=5)
     parser.add_argument('--test_world_num', type=int, default=5)
-    parser.add_argument('--min_agent_num', type=int, default=5)
-    parser.add_argument('--max_agent_num', type=int, default=8)
+    parser.add_argument('--min_agent_num_train', type=int, default=5)
+    parser.add_argument('--max_agent_num_train', type=int, default=8)
+    parser.add_argument('--min_agent_num_val', type=int, default=5)
+    parser.add_argument('--max_agent_num_val', type=int, default=8)
+    parser.add_argument('--min_agent_num_test', type=int, default=5)
+    parser.add_argument('--max_agent_num_test', type=int, default=8)
     parser.add_argument('--dataset_dir', type=str, default="./vis_dataset/easy_200")
     return parser.parse_args()
 
@@ -370,15 +374,31 @@ def create_vis_dataset(args, logger):
 
     for stage, world_num in world_num_dict.items():
         vis_dataset = {}
-
+        # set min/max agent_num
+        if stage == "train":
+            min_agent_num = args.min_agent_num_train
+            max_agent_num = args.max_agent_num_train
+        elif stage == "val": 
+            min_agent_num = args.min_agent_num_val
+            max_agent_num = args.max_agent_num_val
+        else:
+            min_agent_num = args.min_agent_num_test
+            max_agent_num = args.max_agent_num_test
         # Stimulate several worlds
         for world_idx in trange(world_num):
-            torch.manual_seed(world_idx)
-            np.random.seed(world_idx)
+            # set a suitable seed
+            if stage == "train":
+                seed = world_idx
+            elif stage == "val": 
+                seed = world_num_dict["train"] + world_idx
+            else:
+                seed = world_num_dict["train"] + world_num_dict["val"] + world_idx
+            torch.manual_seed(seed)
+            np.random.seed(seed)
 
             # Generate random agents
             agents_list = []
-            agent_num = np.random.randint(args.min_agent_num, args.max_agent_num+1)
+            agent_num = np.random.randint(min_agent_num, max_agent_num+1)
             priority_list = np.arange(1, agent_num+1)
             np.random.shuffle(priority_list)
             for agent_id in range(agent_num):

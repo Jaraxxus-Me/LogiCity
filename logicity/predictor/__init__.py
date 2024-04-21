@@ -1,6 +1,8 @@
-from .neural.ResNet_gnn import LogicityPredictorVis
+from .neural.ResNet_gnn import LogicityVisPredictorGNN
+from .neural.ResNet_nlm import LogicityVisPredictorNLM
 
 
 MODEL_BUILDER = {
-    "LogicityPredictorVis": LogicityPredictorVis,
+    "LogicityVisPredictorGNN": LogicityVisPredictorGNN,
+    "LogicityVisPredictorNLM": LogicityVisPredictorNLM,
 }

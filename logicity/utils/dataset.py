@@ -62,21 +62,14 @@ class VisDataset(torch.utils.data.Dataset):
     def __init__(
             self,
             vis_dataset_path, 
-            batch_size=1, 
-            shuffle=True,
             gt_vis=False,
         ):
 
-        self.batch_size = batch_size
-        self.shuffle = shuffle
         self.gt_vis = gt_vis
         with open(vis_dataset_path, "rb") as f:
             self.vis_dataset = pkl.load(f)
         self.vis_dataset_list = list(self.vis_dataset.keys())
-        if self.shuffle:
-            np.random.shuffle(self.vis_dataset_list)
         self.data_size = len(self.vis_dataset_list)
-        self.num_batches = self.data_size // self.batch_size
         self.direction_dict = {
             "left": [1, 0, 0, 0],
             "right": [0, 1, 0, 0],
@@ -139,7 +132,7 @@ class VisDataset(torch.utils.data.Dataset):
         return im
 
     def __len__(self):
-        return self.num_batches
+        return self.data_size
     
     def __getitem__(self, idx):
         step_name = self.vis_dataset_list[idx]
@@ -161,6 +154,28 @@ class VisDataset(torch.utils.data.Dataset):
             self.gt_visualization(step_name, self.vis_dataset[step_name]["Image_path"], predicates, bboxes, detailed_types, output_folder)
 
         img = torch.Tensor(np.array(img))
+
+        predicates_tensor_dict = {}
+        unary_list = []
+        binary_list = []
+        for k, v in predicates.items():
+            if len(v.shape) == 1:
+                unary_list.append(v)
+            elif len(v.shape) == 2:
+                binary_list.append(v)
+        predicates_tensor_dict["unary"] = torch.stack(unary_list, dim=-1).to(torch.float)
+        N = len(next_actions)
+        binary_predicates_tensor = torch.stack(binary_list, dim=-1)
+        bin_C = binary_predicates_tensor.shape[-1]
+        binary_predicates_tensor_compressed = torch.zeros(N, N-1, bin_C).to(torch.bool)
+        upper_idxs = torch.triu_indices(N, N, offset=1)
+        lower_idxs = torch.tril_indices(N, N, offset=-1)
+        binary_predicates_tensor_compressed[upper_idxs[0], upper_idxs[1]-1] = \
+            binary_predicates_tensor[upper_idxs[0], upper_idxs[1]]
+        binary_predicates_tensor_compressed[lower_idxs[0], lower_idxs[1]] = \
+            binary_predicates_tensor[lower_idxs[0], lower_idxs[1]]
+        predicates_tensor_dict["binary"] = binary_predicates_tensor_compressed.view(-1, bin_C).to(torch.float)
+
         bboxes = torch.Tensor(np.array(bboxes))
         priorities = torch.Tensor(np.array(priorities))
         directions = torch.Tensor(np.array(direction_tensor_list))
@@ -170,7 +185,7 @@ class VisDataset(torch.utils.data.Dataset):
         out_dict = {
             "step_name": step_name,
             "img": img,
-            "predicates": predicates,
+            "predicates": predicates_tensor_dict,
             "bboxes": bboxes,
             "types": types,
             "detailed_types": detailed_types,

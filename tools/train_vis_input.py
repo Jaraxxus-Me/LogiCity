@@ -4,7 +4,6 @@ import torch.nn as nn
 import argparse
 from tqdm import tqdm
 import wandb
-import json
 import os
 from logicity.utils.dataset import VisDataset
 from torch.utils.data import DataLoader
@@ -18,13 +17,17 @@ def CUDA(x):
 
 def get_parser():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--model", type=str, default='LogicityPredictorVis', help="model name")
+    parser.add_argument("--model", type=str, default='LogicityVisPredictorNLM', help="model name")
     parser.add_argument("--data_path", type=str, default='vis_dataset/easy_200')
     parser.add_argument("--mode", type=str, default='easy')
-    parser.add_argument("--exp", type=str, default='easy_200')
+    parser.add_argument("--dataset_name", type=str, default='easy_200')
+    parser.add_argument("--exp", type=str, default='resnet_gnn')
+    parser.add_argument("--epochs", type=int, default=100)
+    parser.add_argument("--lr", type=float, default=1e-4)
+    parser.add_argument("--add_concept_loss", action='store_true', help='Add concept_loss in addition to action_loss.')
+    parser.add_argument('--bilevel', action='store_true', help='Train the model in a bilevel style.')
     return parser.parse_args()
 
-    
 def compute_action_acc(pred, label):
     pred = CPU(pred)
     label = CPU(label)
@@ -34,23 +37,23 @@ def compute_action_acc(pred, label):
     # print(pred, label, acc)
     return acc
 
-if __name__ == "__main__":
-    args = get_parser()
+def train(args):
     vis_dataset_path = args.data_path
     mode = args.mode
-    exp_name = args.exp
-    lr = 5e-6
-    epochs = 200
+    dataset_name = args.dataset_name
+    lr = args.lr
+    epochs = args.epochs
 
     config = {
-        "dataset": "easy_200",
+        "dataset": dataset_name,
         "epochs": epochs,
         "learning_rate": lr,
     }
+    print(config)
 
     wandb.init(
         project = "logicity_vis_input",
-        name = "resnet_gnn_{}".format(json.dumps(config)),
+        name = "{}_{}".format(args.exp, mode),
         config = config,
     )
 
@@ -61,17 +64,18 @@ if __name__ == "__main__":
     # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.9)
 
     # prepare train, val, and test set
-    train_vis_dataset_path = os.path.join(vis_dataset_path, "train/train_{}.pkl".format(exp_name))
-    val_vis_dataset_path = os.path.join(vis_dataset_path, "val/val_{}.pkl".format(exp_name))
-    test_vis_dataset_path = os.path.join(vis_dataset_path, "test/test_{}.pkl".format(exp_name))
-    train_dataset = VisDataset(train_vis_dataset_path, batch_size=1)
-    train_dataloader = DataLoader(train_dataset, batch_size=1)
-    val_dataset = VisDataset(val_vis_dataset_path, batch_size=1)
-    val_dataloader = DataLoader(val_dataset, batch_size=1)
-    test_dataset = VisDataset(test_vis_dataset_path, batch_size=1)
-    test_dataloader = DataLoader(test_dataset, batch_size=1)
+    train_vis_dataset_path = os.path.join(vis_dataset_path, "train/train_{}.pkl".format(dataset_name))
+    val_vis_dataset_path = os.path.join(vis_dataset_path, "val/val_{}.pkl".format(dataset_name))
+    test_vis_dataset_path = os.path.join(vis_dataset_path, "test/test_{}.pkl".format(dataset_name))
+    train_dataset = VisDataset(train_vis_dataset_path)
+    train_dataloader = DataLoader(train_dataset, batch_size=1, shuffle=True)
+    val_dataset = VisDataset(val_vis_dataset_path)
+    val_dataloader = DataLoader(val_dataset, batch_size=1, shuffle=True)
+    test_dataset = VisDataset(test_vis_dataset_path)
+    test_dataloader = DataLoader(test_dataset, batch_size=1, shuffle=True)
 
     loss_ce = nn.CrossEntropyLoss()
+    loss_bce = nn.BCELoss()
 
     wandb.watch(model)
     best_acc = -1
@@ -81,10 +85,15 @@ if __name__ == "__main__":
 
         for batch in tqdm(train_dataloader):
             gt_actions = CUDA(batch["next_actions"][0])
-            pred_actions = model(CUDA(batch["img"]), CUDA(batch["bboxes"]), CUDA(batch["directions"]), CUDA(batch["priorities"]))
+            gt_unary_concepts = CUDA(batch["predicates"]["unary"][0])
+            gt_binary_concepts = CUDA(batch["predicates"]["binary"][0])
+            pred_actions, pred_unary_concepts, pred_binary_concepts = model(CUDA(batch["img"]), CUDA(batch["bboxes"]), CUDA(batch["directions"]), CUDA(batch["priorities"]))
             loss_actions = loss_ce(pred_actions, gt_actions)
-
             loss = loss_actions
+            if args.add_concept_loss:
+                loss_concepts = loss_bce(pred_unary_concepts, gt_unary_concepts) \
+                                + loss_bce(pred_binary_concepts, gt_binary_concepts)
+                loss += loss_concepts
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
@@ -95,16 +104,22 @@ if __name__ == "__main__":
 
         loss_train /= len(train_dataset)
         acc_train /= len(train_dataset)
-        print("Epoch: {},Training Loss: {:.4f}, Acc: {:.4f}".format(
-            epoch, loss_train, acc_train))
+        print("Epoch: {},Training Loss: {:.4f}, Acc: {:.4f}, lr: {}".format(
+            epoch, loss_train, acc_train, optimizer.state_dict()['param_groups'][0]['lr'],))
 
         # evaluate the accuracy and loss on val set
         with torch.no_grad():
             for batch in tqdm(val_dataloader):
                 gt_actions = CUDA(batch["next_actions"][0])
-                pred_actions = model(CUDA(batch["img"]), CUDA(batch["bboxes"]), CUDA(batch["directions"]), CUDA(batch["priorities"]))
+                gt_unary_concepts = CUDA(batch["predicates"]["unary"][0])
+                gt_binary_concepts = CUDA(batch["predicates"]["binary"][0])
+                pred_actions, pred_unary_concepts, pred_binary_concepts = model(CUDA(batch["img"]), CUDA(batch["bboxes"]), CUDA(batch["directions"]), CUDA(batch["priorities"]))
                 loss_actions = loss_ce(pred_actions, gt_actions)
                 loss = loss_actions
+                if args.add_concept_loss:
+                    loss_concepts = loss_bce(pred_unary_concepts, gt_unary_concepts) \
+                                    + loss_bce(pred_binary_concepts, gt_binary_concepts)
+                    loss += loss_concepts
                 loss_val += loss.item()
                 acc = compute_action_acc(pred_actions, gt_actions)
                 acc_val += acc
@@ -113,7 +128,6 @@ if __name__ == "__main__":
         acc_val /= len(val_dataset)
         print("Epoch: {}, Validation Loss: {:.4f}, Acc: {:.4f}".format(
             epoch, loss_val, acc_val))
-
 
         wandb.log({
             'epoch': epoch,
@@ -130,7 +144,7 @@ if __name__ == "__main__":
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'loss': loss_val,
-            }, "vis_input_weights/resnet_gnn_lr{}_epoch{}_valacc{:.3f}.pth".format(lr, epoch, acc_val))
+            }, "vis_input_weights/{}/{}_lr{}_epoch{}_valacc{:.4f}.pth".format(mode, args.exp, lr, epoch, acc_val))
             if best_acc < acc_val:
                 best_acc = acc_val
                 torch.save({
@@ -138,28 +152,16 @@ if __name__ == "__main__":
                     'model_state_dict': model.state_dict(),
                     'optimizer_state_dict': optimizer.state_dict(),
                     'loss': loss_val,
-                }, "vis_input_weights/resnet_gnn_best.pth")
-
-    # evaluate the accuracy and loss on test set
-    loss_test = 0.
-    acc_test = 0.
-    with torch.no_grad():
-        for batch in tqdm(test_dataloader):
-            gt_actions = CUDA(batch["next_actions"][0])
-            pred_actions = model(CUDA(batch["img"]), CUDA(batch["bboxes"]), CUDA(batch["directions"]), CUDA(batch["priorities"]))
-            loss_actions = loss_ce(pred_actions, gt_actions)
-            loss = loss_actions
-            loss_test += loss.item()
-            acc = compute_action_acc(pred_actions, gt_actions)
-            acc_test += acc
-    
-    loss_test /= len(test_dataset)
-    acc_test /= len(test_dataset)
-    print("Epoch: {}, Testing Loss: {:.4f}, Acc: {:.4f}".format(
-        epoch, loss_test, acc_test))
-
-
-
-
+                }, "vis_input_weights/{}/{}_best.pth".format(mode, args.exp))
 
     wandb.finish()
+
+def train_bilevel(args):
+    pass
+
+if __name__ == "__main__":
+    args = get_parser()
+    if args.bilevel:
+        train_bilevel(args)
+    else:
+        train(args)
