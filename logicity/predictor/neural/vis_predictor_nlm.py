@@ -1,9 +1,9 @@
 import torch
 import yaml
 import torch.nn as nn
-import torchvision
 from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
 from logicity.rl_agent.policy.nlm_helper.nn.neural_logic import LogicMachine, LogitsInference
+from logicity.predictor.neural.resnet_fpn import LogicityVisPerceptor
 
 class NLM(nn.Module):
   """The model for family tree or general graphs path tasks."""
@@ -30,19 +30,9 @@ class NLM(nn.Module):
     pred = self.pred(feature)
     return pred
 
-class LogicityVisPredictorNLM(nn.Module):
-    def __init__(self, mode):
-        super(LogicityVisPredictorNLM, self).__init__()
-
-        # Build feature extractor
-        self.resnet_layer_num = 4
-        self.resnet_fpn = resnet_fpn_backbone(
-            "resnet50", pretrained=True, trainable_layers=self.resnet_layer_num+1
-        )
-        self.img_feature_channels = self.resnet_fpn.out_channels * self.resnet_layer_num # 1024
-        self.transform = torchvision.transforms.Compose([
-            torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ])
+class LogicityVisReasoningEngine(nn.Module):
+    def __init__(self, mode, img_feature_channels):
+        super(LogicityVisReasoningEngine, self).__init__()
 
         # Process ontology
         assert mode in ["easy", "medium", "hard", "expert"]
@@ -67,7 +57,7 @@ class LogicityVisPredictorNLM(nn.Module):
         # Build node concept predictor
         self.node_channels = len(self.node_concept_names)
         self.node_concept_predictor = nn.Sequential(
-            nn.Linear(self.img_feature_channels, 512),
+            nn.Linear(img_feature_channels, 512),
             nn.ReLU(),
             nn.Linear(512, 256),
             nn.ReLU(),
@@ -105,30 +95,11 @@ class LogicityVisPredictorNLM(nn.Module):
             "recursion": False,
         }
         self.nlm = NLM(env=None, tgt_arity=1, nlm_args=self.nlm_args, target_dim=self.action_channels)
-
-    def forward(self, batch_imgs, batch_bboxes, batch_directions, batch_priorities):
-        device = batch_imgs.device
-        B = batch_imgs.shape[0]
-        N = batch_bboxes.shape[1]
-        batch_imgs = batch_imgs.permute(0, 3, 2, 1) # Bx3xHxW
-        # normalize with mean and std of ImageNet
-        batch_imgs = self.transform(batch_imgs)
-        
-        # Extract img features
-        with torch.no_grad(): # frozen
-            fpn_features = self.resnet_fpn(batch_imgs)
-        feature_list = []
-        for layer in range(self.resnet_layer_num):
-            feature = fpn_features[str(layer)]
-            feature = torch.nn.functional.interpolate(feature, fpn_features["0"].shape[-2:], mode="bilinear")
-            feature_list.append(feature)
-        imgs_features = torch.cat(feature_list, dim=1)
-        imgs_features = torch.nn.functional.interpolate(imgs_features, batch_imgs.shape[-2:], mode="bilinear") # B x C_img x H x W
-        
-        # Get bbox features
-        bboxes = [batch_bboxes[i] for i in range(batch_bboxes.shape[0])]
-        roi_features = torchvision.ops.roi_pool(imgs_features, bboxes, output_size=1).squeeze()
-        roi_features = roi_features.view(B, N, roi_features.shape[1]) # B x N x C_img
+    
+    def forward(self, roi_features, batch_bboxes, batch_directions, batch_priorities):
+        device = roi_features.device
+        B = roi_features.shape[0]
+        N = roi_features.shape[1]
         
         # Predict node concepts
         node_concepts = self.node_concept_predictor(roi_features) # B x N x concept_num
@@ -170,4 +141,18 @@ class LogicityVisPredictorNLM(nn.Module):
         }
         next_actions = self.nlm(feed_dict)[0]  # TODO: don't support batch now
 
-        return next_actions, node_concepts[0], edge_attributes[0].view(N*(N-1), -1)
+        return next_actions, node_concepts[0], edge_attributes[0].view(N*(N-1), -1)        
+
+
+class LogicityVisPredictorNLM(nn.Module):
+    def __init__(self, mode):
+        super(LogicityVisPredictorNLM, self).__init__()
+
+        self.perceptor = LogicityVisPerceptor()
+        self.reasoning_engine = LogicityVisReasoningEngine(mode, self.perceptor.img_feature_channels)
+
+    def forward(self, batch_imgs, batch_bboxes, batch_directions, batch_priorities):
+        roi_features = self.perceptor(batch_imgs, batch_bboxes)
+        next_actions, unary_concepts, binary_concepts = \
+            self.reasoning_engine(roi_features, batch_bboxes, batch_directions, batch_priorities)
+        return next_actions, unary_concepts, binary_concepts

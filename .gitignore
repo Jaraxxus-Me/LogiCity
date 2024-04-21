@@ -6,7 +6,8 @@ log_rl/
 tb_logs/
 *.gif
 # vis*/
-vis_*
+vis_dataset
+vis_input_weights
 vis_city/
 vis_city_uav/
 odom_progress/

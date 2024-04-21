@@ -1,5 +1,5 @@
-from .neural.ResNet_gnn import LogicityVisPredictorGNN
-from .neural.ResNet_nlm import LogicityVisPredictorNLM
+from .neural.vis_predictor_gnn import LogicityVisPredictorGNN
+from .neural.vis_predictor_nlm import LogicityVisPredictorNLM
 
 
 MODEL_BUILDER = {
