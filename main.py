@@ -590,6 +590,8 @@ def create_vis_dataset(args, logger):
                 if last_icons is None:
                     last_icons = icon_dict_local
         
+        if not os.path.exists(os.path.join(args.dataset_dir, stage)):
+            os.makedirs(os.path.join(args.dataset_dir, stage))
         with open(os.path.join(args.dataset_dir, "{}/{}_{}.pkl".format(stage, stage, args.exp)), "wb") as f:
             pkl.dump(vis_dataset, f)
 

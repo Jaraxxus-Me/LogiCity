@@ -6,6 +6,7 @@ from tqdm import tqdm
 import os
 from logicity.utils.dataset import VisDataset
 from torch.utils.data import DataLoader
+from logicity.predictor import MODEL_BUILDER
 
 def CPU(x):
     return x.detach().cpu().numpy() if isinstance(x, torch.Tensor) else x
@@ -21,7 +22,6 @@ def get_parser():
     parser.add_argument("--dataset_name", type=str, default='easy_200')
     parser.add_argument("--checkpoint_path", type=str, default='best.pth')
     parser.add_argument("--add_concept_loss", action='store_true', help='Add concept_loss in addition to action_loss.')
-    parser.add_argument('--bilevel', action='store_true', help='Train the model in a bilevel style.')
     return parser.parse_args()
 
     
@@ -31,16 +31,27 @@ def compute_action_acc(pred, label):
     pred = np.argmax(pred, axis=-1)
     label = np.argmax(label, axis=-1)
     acc = np.sum(pred == label) / len(label)
-    # print(pred, label, acc)
-    return acc
+    slow_correct_num = np.sum((pred==label)&(label==0))
+    slow_gt_num = np.sum(label==0)
+    normal_correct_num = np.sum((pred==label)&(label==1))
+    normal_gt_num = np.sum(label==1)
+    fast_correct_num = np.sum((pred==label)&(label==2))
+    fast_gt_num = np.sum(label==2)
+    stop_correct_num = np.sum((pred==label)&(label==3))
+    stop_gt_num = np.sum(label==3)
+    return acc, [slow_correct_num, slow_gt_num, normal_correct_num, normal_gt_num, \
+            fast_correct_num, fast_gt_num, stop_correct_num, stop_gt_num]
 
 
 if __name__ == "__main__":
     args = get_parser()
     vis_dataset_path = args.data_path
     dataset_name = args.dataset_name
+    mode = args.mode
 
-    model = torch.load(args.checkpoint_path)
+    model = MODEL_BUILDER[args.model](mode)
+    state_dict = torch.load(args.checkpoint_path)["model_state_dict"]
+    model.load_state_dict(state_dict)
     model = CUDA(model)
 
     # prepare test set
@@ -54,6 +65,7 @@ if __name__ == "__main__":
     # evaluate the accuracy and loss on test set
     loss_test = 0.
     acc_test = 0.
+    action_total = [0, 0, 0, 0, 0, 0, 0, 0]
     with torch.no_grad():
         for batch in tqdm(test_dataloader):
             gt_actions = CUDA(batch["next_actions"][0])
@@ -67,9 +79,15 @@ if __name__ == "__main__":
                                 + loss_bce(pred_binary_concepts, gt_binary_concepts)
                 loss += loss_concepts            
             loss_test += loss.item()
-            acc = compute_action_acc(pred_actions, gt_actions)
+            acc, action_results_list = compute_action_acc(pred_actions, gt_actions)
             acc_test += acc
+            for i, a in enumerate(action_results_list):
+                action_total[i] += a
 
     loss_test /= len(test_dataset)
     acc_test /= len(test_dataset)
     print("Testing Loss: {:.4f}, Acc: {:.4f}".format(loss_test, acc_test))
+    print("Slow: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(action_total[0], action_total[1], action_total[0]/action_total[1]))
+    print("Normal: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(action_total[2], action_total[3], action_total[2]/action_total[3]))
+    print("Fast: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(action_total[4], action_total[5], action_total[4]/action_total[5]))
+    print("Stop: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(action_total[6], action_total[7], action_total[6]/action_total[7]))
