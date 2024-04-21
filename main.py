@@ -360,7 +360,7 @@ def random_agents_generation(agent_num, priority_list, valid_concept_names, mode
             agents_list.append(agent)
 
     elif mode == "expert":
-        if stage == "test":
+        if stage != "test":
             ped_num = np.random.randint(4, 7)
         else:
             ped_num = np.random.randint(8, 11)
