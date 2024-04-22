@@ -100,9 +100,9 @@ def train(args):
                 class_weights = car_gt_num / (car_action_gt_nums + 1e-6)
                 car_idxs = np.where(np.array(is_car_mask)==True)[0].tolist()
                 loss_ce = nn.CrossEntropyLoss(weight=CUDA(class_weights))
-                loss_actions = loss_ce(pred_actions[car_idxs], gt_actions[car_idxs])
-            else:
-                loss_actions = loss_ce(pred_actions, gt_actions)
+                pred_actions = pred_actions[car_idxs]
+                gt_actions = gt_actions[car_idxs]
+            loss_actions = loss_ce(pred_actions, gt_actions)
             loss = loss_actions
             if args.add_concept_loss:
                 loss_concepts = loss_bce(pred_unary_concepts, gt_unary_concepts) \
@@ -142,9 +142,9 @@ def train(args):
                     class_weights = car_gt_num / (car_action_gt_nums + 1e-6)
                     car_idxs = np.where(np.array(is_car_mask)==True)[0].tolist()
                     loss_ce = nn.CrossEntropyLoss(weight=CUDA(class_weights))
-                    loss_actions = loss_ce(pred_actions[car_idxs], gt_actions[car_idxs])
-                else:
-                    loss_actions = loss_ce(pred_actions, gt_actions)
+                    pred_actions = pred_actions[car_idxs]
+                    gt_actions = gt_actions[car_idxs]
+                loss_actions = loss_ce(pred_actions, gt_actions)
                 loss = loss_actions
                 if args.add_concept_loss:
                     loss_concepts = loss_bce(pred_unary_concepts, gt_unary_concepts) \

@@ -1,5 +1,5 @@
 DATASET_NAME="expert_200"
-EXPNAME="resnet_nlm"
+EXPNAME="resnet_nlm_car_only"
 python3 tools/train_vis_input.py \
     --model LogicityVisPredictorNLM \
     --data_path vis_dataset/${DATASET_NAME} \
