@@ -86,8 +86,23 @@ if __name__ == "__main__":
 
     loss_test /= len(test_dataset)
     acc_test /= len(test_dataset)
-    print("Testing Loss: {:.4f}, Acc: {:.4f}".format(loss_test, acc_test))
-    print("Slow: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(action_total[0], action_total[1], action_total[0]/action_total[1]))
-    print("Normal: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(action_total[2], action_total[3], action_total[2]/action_total[3]))
-    print("Fast: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(action_total[4], action_total[5], action_total[4]/action_total[5]))
-    print("Stop: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(action_total[6], action_total[7], action_total[6]/action_total[7]))
+
+    slow_acc = action_total[0] / action_total[1]
+    normal_acc = action_total[2] / action_total[3]
+    fast_acc = action_total[4] / action_total[5]
+    stop_acc = action_total[6] / action_total[7]
+    action_avg_acc = (slow_acc + normal_acc + fast_acc + stop_acc) / 4
+    action_weighted_acc = (action_total[0] + action_total[2] + action_total[4] + action_total[6]) / \
+                            (action_total[1] + action_total[3] + action_total[5] + action_total[7])
+    action_avg_acc_no_normal = (slow_acc + fast_acc + stop_acc) / 3
+    action_weighted_acc_no_normal = (action_total[0] + action_total[4] + action_total[6]) / \
+                            (action_total[1] + action_total[5] + action_total[7])
+    print("Slow: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(action_total[0], action_total[1], slow_acc))
+    print("Normal: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(action_total[2], action_total[3], normal_acc))
+    print("Fast: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(action_total[4], action_total[5], fast_acc))
+    print("Stop: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(action_total[6], action_total[7], stop_acc))
+    print("Testing Loss: {:.4f}, Sample Avg Acc: {:.4f}".format(loss_test, acc_test))
+    print("Action Avg Acc: {:.4f}".format(action_avg_acc))
+    print("Action Weighted Acc: {:.4f}".format(action_weighted_acc))
+    print("Action Avg Acc w/o Normal: {:.4f}".format(action_avg_acc_no_normal))
+    print("Action Weighted Acc w/o Normal: {:.4f}".format(action_weighted_acc_no_normal))
