@@ -133,7 +133,8 @@ def train(args):
             'acc_val': acc_val,
         })
 
-        if (epoch + 1) % 5 == 0:
+        # if (epoch + 1) % 5 == 0:
+        if True:
             if not os.path.exists("vis_input_weights/{}/{}".format(mode, args.exp)):
                 os.makedirs("vis_input_weights/{}/{}".format(mode, args.exp))
             torch.save({

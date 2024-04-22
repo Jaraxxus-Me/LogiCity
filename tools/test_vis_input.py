@@ -25,12 +25,20 @@ def get_parser():
     return parser.parse_args()
 
     
-def compute_action_acc(pred, label):
+def compute_action_acc(pred, label, types):
     pred = CPU(pred)
     label = CPU(label)
     pred = np.argmax(pred, axis=-1)
     label = np.argmax(label, axis=-1)
     acc = np.sum(pred == label) / len(label)
+    
+    is_car_mask = []
+    for type in types:
+        is_car_mask.append((type[0] == "Car"))
+    car_correct_num = np.sum((pred == label)&is_car_mask)
+    car_gt_num = np.sum(is_car_mask)
+    car_acc =  car_correct_num / car_gt_num
+
     slow_correct_num = np.sum((pred==label)&(label==0))
     slow_gt_num = np.sum(label==0)
     normal_correct_num = np.sum((pred==label)&(label==1))
@@ -39,8 +47,20 @@ def compute_action_acc(pred, label):
     fast_gt_num = np.sum(label==2)
     stop_correct_num = np.sum((pred==label)&(label==3))
     stop_gt_num = np.sum(label==3)
+
+    car_slow_correct_num = np.sum((pred==label)&(label==0)&is_car_mask)
+    car_slow_gt_num = np.sum((label==0)&is_car_mask)
+    car_normal_correct_num = np.sum((pred==label)&(label==1)&is_car_mask)
+    car_normal_gt_num = np.sum((label==1)&is_car_mask)
+    car_fast_correct_num = np.sum((pred==label)&(label==2)&is_car_mask)
+    car_fast_gt_num = np.sum((label==2)&is_car_mask)
+    car_stop_correct_num = np.sum((pred==label)&(label==3)&is_car_mask)
+    car_stop_gt_num = np.sum((label==3)&is_car_mask)
+
     return acc, [slow_correct_num, slow_gt_num, normal_correct_num, normal_gt_num, \
-            fast_correct_num, fast_gt_num, stop_correct_num, stop_gt_num]
+            fast_correct_num, fast_gt_num, stop_correct_num, stop_gt_num], \
+            car_acc, [car_correct_num, car_gt_num], [car_slow_correct_num, car_slow_gt_num, car_normal_correct_num, car_normal_gt_num, \
+            car_fast_correct_num, car_fast_gt_num, car_stop_correct_num, car_stop_gt_num],
 
 
 if __name__ == "__main__":
@@ -66,8 +86,12 @@ if __name__ == "__main__":
     loss_test = 0.
     acc_test = 0.
     action_total = [0, 0, 0, 0, 0, 0, 0, 0]
+    car_acc_test = 0.
+    car_total = [0, 0]
+    car_action_total = [0, 0, 0, 0, 0, 0, 0, 0]
     with torch.no_grad():
         for batch in tqdm(test_dataloader):
+            gt_types = batch["types"]
             gt_actions = CUDA(batch["next_actions"][0])
             gt_unary_concepts = CUDA(batch["predicates"]["unary"][0])
             gt_binary_concepts = CUDA(batch["predicates"]["binary"][0])
@@ -79,13 +103,19 @@ if __name__ == "__main__":
                                 + loss_bce(pred_binary_concepts, gt_binary_concepts)
                 loss += loss_concepts            
             loss_test += loss.item()
-            acc, action_results_list = compute_action_acc(pred_actions, gt_actions)
+            acc, action_results_list, car_acc, car_results_list, car_action_results_list = compute_action_acc(pred_actions, gt_actions, gt_types)
             acc_test += acc
+            car_acc_test += car_acc
             for i, a in enumerate(action_results_list):
                 action_total[i] += a
+            for i, a in enumerate(car_results_list):
+                car_total[i] += a
+            for i, a in enumerate(car_action_results_list):
+                car_action_total[i] += a
 
     loss_test /= len(test_dataset)
     acc_test /= len(test_dataset)
+    car_acc_test /= len(test_dataset)
 
     slow_acc = action_total[0] / action_total[1]
     normal_acc = action_total[2] / action_total[3]
@@ -106,3 +136,26 @@ if __name__ == "__main__":
     print("Action Weighted Acc: {:.4f}".format(action_weighted_acc))
     print("Action Avg Acc w/o Normal: {:.4f}".format(action_avg_acc_no_normal))
     print("Action Weighted Acc w/o Normal: {:.4f}".format(action_weighted_acc_no_normal))
+
+
+
+    car_slow_acc = car_action_total[0] / car_action_total[1]
+    car_normal_acc = car_action_total[2] / car_action_total[3]
+    car_fast_acc = car_action_total[4] / car_action_total[5]
+    car_stop_acc = car_action_total[6] / car_action_total[7]
+    car_action_avg_acc = (car_slow_acc + car_normal_acc + car_fast_acc + car_stop_acc) / 4
+    car_action_weighted_acc = (car_action_total[0] + car_action_total[2] + car_action_total[4] + car_action_total[6]) / \
+                            (car_action_total[1] + car_action_total[3] + car_action_total[5] + car_action_total[7])
+    car_action_avg_acc_no_normal = (car_slow_acc + car_fast_acc + car_stop_acc) / 3
+    car_action_weighted_acc_no_normal = (car_action_total[0] + car_action_total[4] + car_action_total[6]) / \
+                            (car_action_total[1] + car_action_total[5] + car_action_total[7])
+    print("Car Slow: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(car_action_total[0], car_action_total[1], car_slow_acc))
+    print("Car Normal: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(car_action_total[2], car_action_total[3], car_normal_acc))
+    print("Car Fast: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(car_action_total[4], car_action_total[5], car_fast_acc))
+    print("Car Stop: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(car_action_total[6], car_action_total[7], car_stop_acc))
+    print("Car Sample Avg Acc: {:.4f}".format(car_acc_test))
+    print("Car: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(car_total[0], car_total[1], car_total[0]/car_total[1]))
+    print("Car Action Avg Acc: {:.4f}".format(car_action_avg_acc))
+    print("Car Action Weighted Acc: {:.4f}".format(car_action_weighted_acc))
+    print("Car Action Avg Acc w/o Normal: {:.4f}".format(car_action_avg_acc_no_normal))
+    print("Car Action Weighted Acc w/o Normal: {:.4f}".format(car_action_weighted_acc_no_normal))
