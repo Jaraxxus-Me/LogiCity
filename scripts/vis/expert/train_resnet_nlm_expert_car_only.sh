@@ -1,4 +1,4 @@
-DATASET_NAME="expert_200"
+DATASET_NAME="expert_200_fixed"
 EXPNAME="resnet_nlm_car_only"
 python3 tools/train_vis_input.py \
     --model LogicityVisPredictorNLM \
