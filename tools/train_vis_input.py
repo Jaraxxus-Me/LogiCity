@@ -26,6 +26,7 @@ def get_parser():
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--add_concept_loss", action='store_true', help='Add concept_loss in addition to action_loss.')
     parser.add_argument('--bilevel', action='store_true', help='Train the model in a bilevel style.')
+    parser.add_argument('--only_supervise_car', action='store_true', help='Only supervise the actions of car.')
     return parser.parse_args()
 
 def compute_action_acc(pred, label):
@@ -84,7 +85,24 @@ def train(args):
             gt_unary_concepts = CUDA(batch["predicates"]["unary"][0])
             gt_binary_concepts = CUDA(batch["predicates"]["binary"][0])
             pred_actions, pred_unary_concepts, pred_binary_concepts = model(CUDA(batch["img"]), CUDA(batch["bboxes"]), CUDA(batch["directions"]), CUDA(batch["priorities"]))
-            loss_actions = loss_ce(pred_actions, gt_actions)
+            
+            if args.only_supervise_car:
+                gt_types = batch["types"]
+                gt_action_labels = np.argmax(CPU(gt_actions), axis=-1)
+                is_car_mask = []
+                for type in gt_types:
+                    is_car_mask.append((type[0] == "Car"))
+                car_gt_num = np.sum(is_car_mask)
+                car_action_gt_num_list = []
+                for i in range(4):
+                    car_action_gt_num_list.append(np.sum((gt_action_labels == i) & is_car_mask))
+                car_action_gt_nums = torch.FloatTensor(car_action_gt_num_list)
+                class_weights = car_gt_num / (car_action_gt_nums + 1e-6)
+                car_idxs = np.where(np.array(is_car_mask)==True)[0].tolist()
+                loss_ce = nn.CrossEntropyLoss(weight=CUDA(class_weights))
+                loss_actions = loss_ce(pred_actions[car_idxs], gt_actions[car_idxs])
+            else:
+                loss_actions = loss_ce(pred_actions, gt_actions)
             loss = loss_actions
             if args.add_concept_loss:
                 loss_concepts = loss_bce(pred_unary_concepts, gt_unary_concepts) \
@@ -109,7 +127,24 @@ def train(args):
                 gt_unary_concepts = CUDA(batch["predicates"]["unary"][0])
                 gt_binary_concepts = CUDA(batch["predicates"]["binary"][0])
                 pred_actions, pred_unary_concepts, pred_binary_concepts = model(CUDA(batch["img"]), CUDA(batch["bboxes"]), CUDA(batch["directions"]), CUDA(batch["priorities"]))
-                loss_actions = loss_ce(pred_actions, gt_actions)
+                
+                if args.only_supervise_car:
+                    gt_types = batch["types"]
+                    gt_action_labels = np.argmax(CPU(gt_actions), axis=-1)
+                    is_car_mask = []
+                    for type in gt_types:
+                        is_car_mask.append((type[0] == "Car"))
+                    car_gt_num = np.sum(is_car_mask)
+                    car_action_gt_num_list = []
+                    for i in range(4):
+                        car_action_gt_num_list.append(np.sum((gt_action_labels == i) & is_car_mask))
+                    car_action_gt_nums = torch.FloatTensor(car_action_gt_num_list)
+                    class_weights = car_gt_num / (car_action_gt_nums + 1e-6)
+                    car_idxs = np.where(np.array(is_car_mask)==True)[0].tolist()
+                    loss_ce = nn.CrossEntropyLoss(weight=CUDA(class_weights))
+                    loss_actions = loss_ce(pred_actions[car_idxs], gt_actions[car_idxs])
+                else:
+                    loss_actions = loss_ce(pred_actions, gt_actions)
                 loss = loss_actions
                 if args.add_concept_loss:
                     loss_concepts = loss_bce(pred_unary_concepts, gt_unary_concepts) \
