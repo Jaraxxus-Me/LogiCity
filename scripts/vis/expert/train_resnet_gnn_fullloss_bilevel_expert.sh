@@ -8,5 +8,4 @@ python3 tools/train_vis_input.py \
     --exp ${EXPNAME} \
     --epochs 100 \
     --lr 5e-6 \
-    --add_concept_loss \
     --bilevel

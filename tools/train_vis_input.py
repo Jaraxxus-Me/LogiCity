@@ -194,7 +194,7 @@ def train_bilevel(args):
     best_acc = -1
     train_target = ['inner', 'outer'] * (epochs // 2)
     for epoch in range(epochs):
-        loss_train, loss_val = 0., 0.
+        action_loss_train, concept_loss_train, action_loss_val, concept_loss_val = 0., 0., 0., 0.
         acc_train, acc_val = 0., 0.
 
         for batch in tqdm(train_dataloader):
@@ -202,30 +202,30 @@ def train_bilevel(args):
             gt_unary_concepts = CUDA(batch["predicates"]["unary"][0])
             gt_binary_concepts = CUDA(batch["predicates"]["binary"][0])
             pred_actions, pred_unary_concepts, pred_binary_concepts = model(CUDA(batch["img"]), CUDA(batch["bboxes"]), CUDA(batch["directions"]), CUDA(batch["priorities"]))
-            loss_actions = loss_ce(pred_actions, gt_actions)
-            loss = loss_actions
-            if args.add_concept_loss:
+            if train_target[epoch] == 'inner':
                 loss_concepts = loss_bce(pred_unary_concepts, gt_unary_concepts) \
                                 + loss_bce(pred_binary_concepts, gt_binary_concepts)
-                loss += loss_concepts
-            loss.backward()
-            if train_target[epoch] == 'inner':
+                loss_concepts.backward()
+                action_loss_train += loss_actions.item()
                 inner_optimizer.step()
                 inner_optimizer.zero_grad()
                 cur_lr = inner_optimizer.state_dict()['param_groups'][0]['lr']
             elif train_target[epoch] == 'outer':
+                loss_actions = loss_ce(pred_actions, gt_actions)
+                loss_actions.backward()
+                concept_loss_train += loss_concepts.item()
                 outer_optimizer.step()
                 outer_optimizer.zero_grad()
                 cur_lr = outer_optimizer.state_dict()['param_groups'][0]['lr']
 
-            loss_train += loss.item()
             acc = compute_action_acc(pred_actions, gt_actions)
             acc_train += acc
 
-        loss_train /= len(train_dataset)
+        action_loss_train /= len(train_dataset)
+        concept_loss_train /= len(train_dataset)
         acc_train /= len(train_dataset)
-        print("Epoch: {},Training Loss: {:.4f}, Acc: {:.4f}, lr: {}".format(
-            epoch, loss_train, acc_train, cur_lr))
+        print("Epoch: {}, Training Action Loss: {:.4f}, Concept Loss: {:.4f}, Acc: {:.4f}, lr: {}".format(
+            epoch, action_loss_train, concept_loss_train, acc_train, cur_lr))
 
         # evaluate the accuracy and loss on val set
         with torch.no_grad():
@@ -235,25 +235,26 @@ def train_bilevel(args):
                 gt_binary_concepts = CUDA(batch["predicates"]["binary"][0])
                 pred_actions, pred_unary_concepts, pred_binary_concepts = model(CUDA(batch["img"]), CUDA(batch["bboxes"]), CUDA(batch["directions"]), CUDA(batch["priorities"]))
                 loss_actions = loss_ce(pred_actions, gt_actions)
-                loss = loss_actions
-                if args.add_concept_loss:
-                    loss_concepts = loss_bce(pred_unary_concepts, gt_unary_concepts) \
-                                    + loss_bce(pred_binary_concepts, gt_binary_concepts)
-                    loss += loss_concepts
-                loss_val += loss.item()
+                loss_concepts = loss_bce(pred_unary_concepts, gt_unary_concepts) \
+                                + loss_bce(pred_binary_concepts, gt_binary_concepts)
+                action_loss_val += loss_actions.item()
+                concept_loss_val += loss_concepts.item()
                 acc = compute_action_acc(pred_actions, gt_actions)
                 acc_val += acc
         
-        loss_val /= len(val_dataset)
+        action_loss_val /= len(val_dataset)
+        concept_loss_val /= len(val_dataset)
         acc_val /= len(val_dataset)
-        print("Epoch: {}, Validation Loss: {:.4f}, Acc: {:.4f}".format(
-            epoch, loss_val, acc_val))
+        print("Epoch: {}, Validation Action Loss: {:.4f}, Concept Loss: {:.4f}, Acc: {:.4f}".format(
+            epoch, action_loss_val, concept_loss_val, acc_val))
 
         wandb.log({
             'epoch': epoch,
             'learning rate': cur_lr,
-            'loss_train': loss_train,
-            'loss_val': loss_val,
+            'action_loss_train': action_loss_train,
+            'concept_loss_train': concept_loss_train,
+            'action_loss_val': action_loss_val,
+            'concept_loss_val': concept_loss_val,
             'acc_train': acc_train,
             'acc_val': acc_val,
         })
@@ -264,7 +265,8 @@ def train_bilevel(args):
                 'model_state_dict': model.state_dict(),
                 'inner_optimizer_state_dict': inner_optimizer.state_dict(),
                 'outer_optimizer_state_dict': outer_optimizer.state_dict(),
-                'loss': loss_val,
+                'action_loss_val': action_loss_val,
+                'concept_loss_val': concept_loss_val,
             }, "vis_input_weights/{}/{}_lr{}_epoch{}_valacc{:.4f}.pth".format(mode, args.exp, lr, epoch, acc_val))
             if best_acc < acc_val:
                 best_acc = acc_val
@@ -273,7 +275,8 @@ def train_bilevel(args):
                     'model_state_dict': model.state_dict(),
                     'inner_optimizer_state_dict': inner_optimizer.state_dict(),
                     'outer_optimizer_state_dict': outer_optimizer.state_dict(),
-                    'loss': loss_val,
+                    'action_loss_val': action_loss_val,
+                    'concept_loss_val': concept_loss_val,
                 }, "vis_input_weights/{}/{}_best.pth".format(mode, args.exp))
 
     wandb.finish()
