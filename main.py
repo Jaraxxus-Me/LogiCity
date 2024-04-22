@@ -465,6 +465,8 @@ def create_vis_dataset(args, logger):
 
     for stage, world_num in world_num_dict.items():
         vis_dataset = {}
+        if args.exp == "expert_200_fixed":
+            simulation_config["agent_yaml_file"] = "config/agents/expert/{}.yaml".format(stage)
         # set min/max agent_num
         if stage == "train":
             min_agent_num = args.min_agent_num_train
@@ -487,16 +489,21 @@ def create_vis_dataset(args, logger):
             torch.manual_seed(seed)
             np.random.seed(seed)
 
-            # Generate random agents
-            agent_num = np.random.randint(min_agent_num, max_agent_num+1)
-            priority_list = np.arange(1, agent_num+1)
-            np.random.shuffle(priority_list)
-            agents_list = random_agents_generation(agent_num, priority_list, valid_concept_names, args.mode, stage)
-            with open(tmp_agent_yaml_file, "w") as f:
-                yaml.dump({"agents": agents_list}, f)
+            if args.exp == "expert_200_fixed":
+                pass
+            else:
+                # Generate random agents
+                agent_num = np.random.randint(min_agent_num, max_agent_num+1)
+                priority_list = np.arange(1, agent_num+1)
+                np.random.shuffle(priority_list)
+                agents_list = random_agents_generation(agent_num, priority_list, valid_concept_names, args.mode, stage)
+                with open(tmp_agent_yaml_file, "w") as f:
+                    yaml.dump({"agents": agents_list}, f)
 
             # Main simulation loop
             city, cached_observation = CityLoader.from_yaml(**simulation_config)
+            if args.exp == "expert_200_fixed":
+                agent_num = len(cached_observation["Static Info"]["Agents"].keys())
             steps = 0
             while steps < args.max_steps:
                 logger.info("Simulating Step_{}...".format(steps))
