@@ -193,12 +193,14 @@ def train(args):
                 val_fast_acc = val_action_total[4] / val_action_total[5]
                 val_stop_acc = val_action_total[6] / val_action_total[7]
 
-                val_action_num = val_action_total[1] + val_action_total[3] + val_action_total[5] + val_action_total[7]
+                val_action_factor = 1 / val_action_total[1] + 1 / val_action_total[3] \
+                                + 1 / val_action_total[5] + 1 / val_action_total[7]
 
-                val_action_weighted_acc = (val_slow_acc * val_action_total[1] / val_action_num \
-                                           + val_normal_acc * val_action_total[3] / val_action_num \
-                                           + val_fast_acc * val_action_total[5] / val_action_num \
-                                           + val_stop_acc * val_action_total[7] / val_action_num) / 4
+                val_action_weighted_acc = (val_slow_acc / val_action_total[1] \
+                                           + val_normal_acc / val_action_total[3] \
+                                           + val_fast_acc / val_action_total[5] \
+                                           + val_stop_acc / val_action_total[7]) / val_action_factor
+
                 print("Slow: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(val_action_total[0], val_action_total[1], val_slow_acc))
                 print("Normal: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(val_action_total[2], val_action_total[3], val_normal_acc))
                 print("Fast: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(val_action_total[4], val_action_total[5], val_fast_acc))
@@ -221,12 +223,14 @@ def train(args):
         fast_acc = action_total[4] / action_total[5]
         stop_acc = action_total[6] / action_total[7]
 
-        action_num = action_total[1] + action_total[3] + action_total[5] + action_total[7]
+        action_factor = 1 / action_total[1] + 1 / action_total[3] \
+                        + 1 / action_total[5] + 1 / action_total[7]
 
-        action_weighted_acc = (slow_acc * action_total[1] / action_num \
-                                    + normal_acc * action_total[3] / action_num \
-                                    + fast_acc * action_total[5] / action_num \
-                                    + stop_acc * action_total[7] / action_num) / 4
+        action_weighted_acc = (slow_acc / action_total[1] \
+                                    + normal_acc / action_total[3] \
+                                    + fast_acc / action_total[5] \
+                                    + stop_acc / action_total[7]) / action_factor
+
         print("Slow: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(action_total[0], action_total[1], slow_acc))
         print("Normal: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(action_total[2], action_total[3], normal_acc))
         print("Fast: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(action_total[4], action_total[5], fast_acc))
