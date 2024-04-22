@@ -1,25 +1,13 @@
 import torch
 import yaml
 import torch.nn as nn
-import torchvision
-from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
 from torch_geometric.nn import NNConv
-import numpy as np
+from logicity.predictor.neural.resnet_fpn import LogicityVisPerceptor
 
 
-class LogicityPredictorVis(nn.Module):
-    def __init__(self, mode):
-        super(LogicityPredictorVis, self).__init__()
-
-        # Build feature extractor
-        self.resnet_layer_num = 4
-        self.resnet_fpn = resnet_fpn_backbone(
-            "resnet50", pretrained=True, trainable_layers=self.resnet_layer_num+1
-        )
-        self.img_feature_channels = self.resnet_fpn.out_channels * self.resnet_layer_num # 1024
-        self.transform = torchvision.transforms.Compose([
-            torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ])
+class LogicityVisReasoningEngine(nn.Module):
+    def __init__(self, mode, img_feature_channels):
+        super(LogicityVisReasoningEngine, self).__init__()
 
         # Process ontology
         assert mode in ["easy", "medium", "hard", "expert"]
@@ -44,11 +32,14 @@ class LogicityPredictorVis(nn.Module):
         # Build node concept predictor
         self.node_channels = len(self.node_concept_names)*256
         self.node_concept_predictor = nn.Sequential(
-            nn.Linear(self.img_feature_channels, 512),
+            nn.Linear(img_feature_channels, 512),
             nn.ReLU(),
             nn.Linear(512, 256),
             nn.ReLU(),
             nn.Linear(256, self.node_channels),
+        )
+        self.node_concept_interpreter = nn.Sequential(
+            nn.Linear(self.node_channels, len(self.node_concept_names)),
             nn.Sigmoid(),
         )
 
@@ -77,33 +68,14 @@ class LogicityPredictorVis(nn.Module):
         ) # A neural network that maps edge features edge_attr of shape [-1, num_edge_features] to shape [-1, in_channels * out_channels]
         self.gnn = NNConv(in_channels=self.node_channels, out_channels=self.action_channels, nn=self.edge_processor) # don't support batch operation
 
-
-    def forward(self, batch_imgs, batch_bboxes, batch_directions, batch_priorities):
-        device = batch_imgs.device
-        B = batch_imgs.shape[0]
-        N = batch_bboxes.shape[1]
-        batch_imgs = batch_imgs.permute(0, 3, 2, 1) # Bx3xHxW
-        # normalize with mean and std of ImageNet
-        batch_imgs = self.transform(batch_imgs)
-        
-        # Extract img features
-        with torch.no_grad(): # frozen
-            fpn_features = self.resnet_fpn(batch_imgs)
-        feature_list = []
-        for layer in range(self.resnet_layer_num):
-            feature = fpn_features[str(layer)]
-            feature = torch.nn.functional.interpolate(feature, fpn_features["0"].shape[-2:], mode="bilinear")
-            feature_list.append(feature)
-        imgs_features = torch.cat(feature_list, dim=1)
-        imgs_features = torch.nn.functional.interpolate(imgs_features, batch_imgs.shape[-2:], mode="bilinear") # B x C_img x H x W
-        
-        # Get bbox features
-        bboxes = [batch_bboxes[i] for i in range(batch_bboxes.shape[0])]
-        roi_features = torchvision.ops.roi_pool(imgs_features, bboxes, output_size=1).squeeze()
-        roi_features = roi_features.view(B, N, roi_features.shape[1]) # B x N x C_img
-        
+    def forward(self, roi_features, batch_bboxes, batch_directions, batch_priorities):
+        device = roi_features.device
+        B = roi_features.shape[0]
+        N = roi_features.shape[1]
+       
         # Predict node concepts
         node_concepts = self.node_concept_predictor(roi_features) # B x N x (concept_num x 256)
+        node_concepts_explicit = self.node_concept_interpreter(node_concepts)
         
         # Create scene graph (node:(concept, bbox, direction, priority))
         # 1. concat node attributes use for edge prediction (bbox, direction)
@@ -136,4 +108,17 @@ class LogicityPredictorVis(nn.Module):
         # Predict actions
         next_actions = self.gnn(node_concepts[0], edge_idxs, edge_attributes[0])
 
-        return next_actions
+        return next_actions, node_concepts_explicit[0], edge_attributes[0]
+
+class LogicityVisPredictorGNN(nn.Module):
+    def __init__(self, mode):
+        super(LogicityVisPredictorGNN, self).__init__()
+
+        self.perceptor = LogicityVisPerceptor()
+        self.reasoning_engine = LogicityVisReasoningEngine(mode, self.perceptor.img_feature_channels)
+
+    def forward(self, batch_imgs, batch_bboxes, batch_directions, batch_priorities):
+        roi_features = self.perceptor(batch_imgs, batch_bboxes)
+        next_actions, unary_concepts, binary_concepts = \
+            self.reasoning_engine(roi_features, batch_bboxes, batch_directions, batch_priorities)
+        return next_actions, unary_concepts, binary_concepts
