@@ -119,7 +119,7 @@ To render the image data with labels:
 git checkout vis
 
 # get the vis dataset for scratch
-scripts/vis/expert/create_vis_dataset_expert_fixed.sh
+bash scripts/vis/expert/create_vis_dataset_expert_fixed.sh
 
 # train the model with vis dataset
 python tools/train_vis_input.py --data_path vis_dataset/easy_1k/easy_1k_5.pkl --mode easy

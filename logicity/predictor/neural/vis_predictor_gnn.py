@@ -81,6 +81,7 @@ class LogicityVisReasoningEngine(nn.Module):
         # 1. concat node attributes use for edge prediction (bbox, direction)
         node_attributes = torch.cat([batch_bboxes/self.BBOX_POS_MAX, batch_directions], dim=-1) # B x N x (4+4)
         # 2. prepare edge idxs
+        # TODO: optimize this part, maybe use the sees matrix for edge_idxs?
         tmp_idx = torch.arange(N)
         i, j = torch.meshgrid(tmp_idx, tmp_idx, indexing='ij')
         tmp_mask = (i != j)
