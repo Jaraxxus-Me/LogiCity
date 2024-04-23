@@ -294,9 +294,12 @@ class City:
     def get_predicate_groundings(self, agent_action_dist):
         groundings = {}
         agent_num = len(self.agents)
+        agent_sees = torch.zeros([agent_num, agent_num], dtype=torch.bool)
         for key, value in agent_action_dist.items():
             if "_grounding_dic" not in key:
                 continue
+            agent_name = key.replace('_grounding_dic', "")
+            ego_layer_id = int(agent_name.split('_')[1])
             for k, v in value.items():
                 tmp_split = k.split('_')
                 predicate_name = tmp_split[0]
@@ -305,9 +308,15 @@ class City:
                     if predicate_name not in groundings:
                         groundings[predicate_name] = torch.zeros([agent_num], dtype=torch.bool)
                     groundings[predicate_name][layer_id_1-BASIC_LAYER] = v
+                    if not agent_sees[ego_layer_id-BASIC_LAYER][layer_id_1-BASIC_LAYER]:
+                        agent_sees[ego_layer_id-BASIC_LAYER][layer_id_1-BASIC_LAYER] = True
+
                 elif len(tmp_split) == 3:
                     if predicate_name not in groundings:
                         groundings[predicate_name] = torch.zeros([agent_num, agent_num], dtype=torch.bool)
                     layer_id_2 = int(tmp_split[2])
                     groundings[predicate_name][layer_id_1-BASIC_LAYER][layer_id_2-BASIC_LAYER] = v
+                    if not agent_sees[ego_layer_id-BASIC_LAYER][layer_id_2-BASIC_LAYER]:
+                        agent_sees[ego_layer_id-BASIC_LAYER][layer_id_2-BASIC_LAYER] = True
+        groundings["Sees"] = agent_sees
         return groundings
