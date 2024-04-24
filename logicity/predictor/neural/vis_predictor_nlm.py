@@ -47,7 +47,7 @@ class LogicityVisReasoningEngine(nn.Module):
         self.action_names = []
         for predicate in self.ontology_config["Predicates"]:
             predicate_name = list(predicate.keys())[0]
-            if predicate_name.startswith("Is"):
+            if predicate[predicate_name]["arity"] == 1: # "Is" assumtion is wrong, IsClose is binary
                 self.node_concept_names.append(predicate_name)
             elif predicate[predicate_name]["arity"] == 2:
                 self.edge_concept_names.append(predicate_name)

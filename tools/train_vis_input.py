@@ -29,7 +29,7 @@ def CUDA(x):
 
 def get_parser():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--model", type=str, default='LogicityVisPredictorGNN', help="model name")
+    parser.add_argument("--model", type=str, default='LogicityVisPredictorNLM', help="model name")
     parser.add_argument("--data_path", type=str, default='vis_dataset/expert_200_fixed')
     parser.add_argument("--mode", type=str, default='expert')
     parser.add_argument("--dataset_name", type=str, default='expert_200_fixed')
@@ -106,11 +106,11 @@ def train(args):
 
         iter_num = 0
         for batch in tqdm(train_dataloader):
-            gt_actions = CUDA(batch["next_actions"][0])
-            gt_unary_concepts = CUDA(batch["predicates"]["unary"][0])
-            gt_binary_concepts = CUDA(batch["predicates"]["binary"][0])
+            gt_actions = CUDA(batch["next_actions"])
+            gt_unary_concepts = CUDA(batch["predicates"]["unary"])
+            gt_binary_concepts = CUDA(batch["predicates"]["binary"])
             # TODO: for zhaoyu, gt_binary_concepts[:, -1] is the concept of "sees", use 11x10 matrix to represent the edge
-            edge = gt_binary_concepts[:, -1].reshape(-1, 11, 10)
+            edge = gt_binary_concepts[:, :, -1].reshape(-1, 11, 10)
             pred_actions, pred_unary_concepts, pred_binary_concepts = model(CUDA(batch["img"]), CUDA(batch["bboxes"]), CUDA(batch["directions"]), CUDA(batch["priorities"]))
             
             if args.only_supervise_car:
