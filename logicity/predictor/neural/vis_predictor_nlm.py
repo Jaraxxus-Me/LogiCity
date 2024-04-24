@@ -8,7 +8,7 @@ from logicity.predictor.neural.resnet_fpn import LogicityVisPerceptor
 class NLM(nn.Module):
   """The model for family tree or general graphs path tasks."""
 
-  def __init__(self, env, tgt_arity, nlm_args, \
+  def __init__(self, tgt_arity, nlm_args, \
                target_dim):
     super().__init__()
     # inputs
@@ -44,15 +44,15 @@ class LogicityVisReasoningEngine(nn.Module):
             self.ontology_config = yaml.load(file, Loader=yaml.Loader)
         self.node_concept_names = []
         self.edge_concept_names = []
-        self.action_names = []
+        self.action_names = ["Slow", "Fast", "Normal", "Stop"]
         for predicate in self.ontology_config["Predicates"]:
             predicate_name = list(predicate.keys())[0]
-            if predicate[predicate_name]["arity"] == 1: # "Is" assumtion is wrong, IsClose is binary
+            if predicate[predicate_name]["arity"] == 1 and (predicate_name not in self.action_names): # "Is" assumtion is wrong, IsClose is binary
                 self.node_concept_names.append(predicate_name)
             elif predicate[predicate_name]["arity"] == 2:
                 self.edge_concept_names.append(predicate_name)
             else:
-                self.action_names.append(predicate_name)
+                assert predicate_name in self.action_names, "Unknown predicate name: {}".format(predicate_name)
 
         # Build node concept predictor
         self.node_channels = len(self.node_concept_names)
@@ -94,7 +94,7 @@ class LogicityVisReasoningEngine(nn.Module):
             "residual": False,
             "recursion": False,
         }
-        self.nlm = NLM(env=None, tgt_arity=1, nlm_args=self.nlm_args, target_dim=self.action_channels)
+        self.nlm = NLM(tgt_arity=1, nlm_args=self.nlm_args, target_dim=self.action_channels)
     
     def forward(self, roi_features, batch_bboxes, batch_directions, batch_priorities):
         device = roi_features.device
@@ -135,13 +135,13 @@ class LogicityVisReasoningEngine(nn.Module):
         edge_attributes_[:, lower_pairing_idxs[0], lower_pairing_idxs[1]] = \
             edge_attributes[:, lower_pairing_idxs[0], lower_pairing_idxs[1]]
         feed_dict = {
-            "n": N,
+            "n": torch.tensor([N]*B),
             "states": node_concepts, # B x N x C_node
             "relations": edge_attributes_.view(B, N, N, -1), # B x N x N x (C_edge+1)
         }
-        next_actions = self.nlm(feed_dict)[0]  # TODO: don't support batch now
+        next_actions = self.nlm(feed_dict)
 
-        return next_actions, node_concepts[0], edge_attributes[0].view(N*(N-1), -1)        
+        return next_actions, node_concepts, edge_attributes.view(B, N*(N-1), -1)        
 
 
 class LogicityVisPredictorNLM(nn.Module):

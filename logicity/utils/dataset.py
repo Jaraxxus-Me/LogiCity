@@ -180,14 +180,19 @@ class VisDataset(torch.utils.data.Dataset):
         priorities = torch.Tensor(np.array(priorities))
         directions = torch.Tensor(np.array(direction_tensor_list))
         next_actions = torch.Tensor(np.array(next_actions)).to(torch.int64)
-        next_actions = torch.nn.functional.one_hot(next_actions, num_classes=4).to(torch.float32)
+
+        # Convert list to numpy array
+        types_array = np.array(types)
+        # Create a mask for 'Car'
+        car_mask = (types_array == "Car")
+        car_mask = torch.Tensor(car_mask).to(torch.float)
 
         out_dict = {
             "step_name": step_name,
             "img": img,
             "predicates": predicates_tensor_dict,
             "bboxes": bboxes,
-            "types": types,
+            "car_mask": car_mask,
             "detailed_types": detailed_types,
             "priorities": priorities,
             "directions": directions,
