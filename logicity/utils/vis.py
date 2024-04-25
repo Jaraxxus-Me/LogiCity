@@ -77,13 +77,13 @@ DETAILED_TYPE_MAP = {
 IMAGE_BASE_PATH = "./imgs"
 
 PATH_DICT = {
-    "Car": [os.path.join(IMAGE_BASE_PATH, "car{}.png").format(i) for i in range(1, 3)],
+    "Car": os.path.join(IMAGE_BASE_PATH, "car1.png"),
     "Ambulance": os.path.join(IMAGE_BASE_PATH, "car_ambulance.png"),
     "Bus": os.path.join(IMAGE_BASE_PATH, "car_bus.png"),
     "Tiro": os.path.join(IMAGE_BASE_PATH, "car_tiro.png"),
     "Police": os.path.join(IMAGE_BASE_PATH, "car_police.png"),
     "Reckless": os.path.join(IMAGE_BASE_PATH, "car_reckless.png"),
-    "Pedestrian": [os.path.join(IMAGE_BASE_PATH, "pedestrian{}.png").format(i) for i in range(1, 4)],
+    "Pedestrian": os.path.join(IMAGE_BASE_PATH, "pedestrian1.png"),
     "Pedestrian_old": os.path.join(IMAGE_BASE_PATH, "pedestrian_old.png"),
     "Pedestrian_young": os.path.join(IMAGE_BASE_PATH, "pedestrian_young.png"),
     "Walking Street": os.path.join(IMAGE_BASE_PATH, "walking.png"),
@@ -578,13 +578,9 @@ def gridmap2img_agents(gridmap, gridmap_, icon_dict, static_map, last_icons=None
                 icon = icon_dict["Reckless"]
             else:
                 if agent_type == "Pedestrian":
-                    icon_list = icon_dict[agent_type].copy()
-                    icon_id = i%len(icon_list)
-                    icon = icon_list[icon_id]
+                    icon = icon_dict["Pedestrian"]
                 if agent_type == "Car":
-                    icon_list = icon_dict[agent_type].copy()
-                    icon_id = i%len(icon_list)
-                    icon = icon_list[icon_id]
+                    icon = icon_dict["Car"]
         else:
             icon_list = icon_dict[agent_type]
             icon_id = i%len(icon_list)

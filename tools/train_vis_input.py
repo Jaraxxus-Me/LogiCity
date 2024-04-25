@@ -31,10 +31,10 @@ def CUDA(x):
 
 def get_parser():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=str, default='config/tasks/Vis/ResNetNLM/easy_100_fixed.yaml', help='Path to the config file.')
+    parser.add_argument("--config", type=str, default='config/tasks/Vis/ResNetNLM/easy_200_fixed.yaml', help='Path to the config file.')
     parser.add_argument("--exp", type=str, default='resnet_gnn')
     parser.add_argument('--bilevel', action='store_true', help='Train the model in a bilevel style.')
-    parser.add_argument('--only_supervise_car', action='store_true', help='Only supervise the actions of car.')
+    parser.add_argument('--only_supervise_car', default=True, help='Only supervise the car actions.')
     return parser.parse_args()
 
 def compute_action_acc(pred, label):

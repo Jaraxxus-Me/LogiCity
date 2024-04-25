@@ -29,11 +29,18 @@ Rules:
       formula: |
         Slow(entity) == Exists(
           [dummyEntityA], 
-          And(
-            Not(Stop(entity)), 
-            IsTiro(entity), 
-            IsPedestrian(dummyEntityA), 
-            IsClose(entity, dummyEntityA)
+          Or(
+            And(
+              Not(Stop(entity)), 
+              IsTiro(entity), 
+              IsPedestrian(dummyEntityA), 
+              IsClose(entity, dummyEntityA)
+            ),
+            And(
+              Not(Stop(entity)), 
+              Not(IsAmbulance(entity)),
+              IsInInter(entity)
+            )
           )
         )
       description: Combined Or version of the Slow rules for vehicles.
@@ -41,10 +48,17 @@ Rules:
       formula: |
         Fast(entity) == Exists(
           [dummyEntityA], 
-          And(
-            Not(Stop(entity)), 
-            IsReckless(entity), 
-            IsAtInter(dummyEntityA)
+          Or(
+            And(
+              Not(Stop(entity)), 
+              IsReckless(entity), 
+              IsAtInter(dummyEntityA)
+            ),
+            And(
+              Not(Stop(entity)), 
+              IsAmbulance(entity),
+              IsOld(dummyEntityA)
+            )
           )
         )
       description: Combined Or version of the Fast rules for vehicles.
