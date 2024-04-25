@@ -1,0 +1,50 @@
+Rules:
+  - Stop:
+      formula: |
+        Stop(entity) == Exists(
+          [dummyEntityA], 
+          Or(
+            And(
+              Not(IsAmbulance(entity)), 
+              Not(IsOld(entity)),
+              IsAtInter(entity), 
+              IsInInter(dummyEntityA), 
+            ),
+            And(
+              Not(IsAmbulance(entity)), 
+              Not(IsOld(entity)),
+              IsAtInter(entity), 
+              IsAtInter(dummyEntityA), 
+              HigherPri(dummyEntityA, entity),
+            ),
+            And(
+              Not(IsAmbulance(entity)), 
+              Not(IsOld(entity)),
+              CollidingClose(entity, dummyEntityA)
+            )
+          )
+        )
+      description: Medium stop rule.
+  - Slow:
+      formula: |
+        Slow(entity) == Exists(
+          [dummyEntityA], 
+          And(
+            Not(Stop(entity)), 
+            IsTiro(entity), 
+            IsPedestrian(dummyEntityA), 
+            IsClose(entity, dummyEntityA)
+          )
+        )
+      description: Combined Or version of the Slow rules for vehicles.
+  - Fast:
+      formula: |
+        Fast(entity) == Exists(
+          [dummyEntityA], 
+          And(
+            Not(Stop(entity)), 
+            IsReckless(entity), 
+            IsAtInter(dummyEntityA)
+          )
+        )
+      description: Combined Or version of the Fast rules for vehicles.

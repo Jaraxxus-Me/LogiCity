@@ -1,9 +1,8 @@
 import torch
 import yaml
 import torch.nn as nn
-from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
 from logicity.rl_agent.policy.nlm_helper.nn.neural_logic import LogicMachine, LogitsInference
-from logicity.predictor.neural.resnet_fpn import LogicityVisPerceptor
+from logicity.predictor.neural.resnet_fpn import LogicityFeatureExtractor
 
 class NLM(nn.Module):
   """The model for family tree or general graphs path tasks."""
@@ -30,17 +29,71 @@ class NLM(nn.Module):
     pred = self.pred(feature)
     return pred
 
-class LogicityVisReasoningEngine(nn.Module):
-    def __init__(self, mode, img_feature_channels):
-        super(LogicityVisReasoningEngine, self).__init__()
+class NLMReasoningEngine(nn.Module):
+    def __init__(self, action_names, nlm_args, target_dim):
+        super(NLMReasoningEngine, self).__init__()
 
-        # Process ontology
-        assert mode in ["easy", "medium", "hard", "expert"]
-        if mode in ["easy", "medium"]:
-            ontology_yaml_file = "config/rules/ontology_{}.yaml".format(mode)
-        else:
-            ontology_yaml_file = "config/rules/ontology_full.yaml"
-        with open(ontology_yaml_file, 'r') as file:
+        # Build action predictor
+        self.action_channels = len(action_names)
+        self.nlm_args = nlm_args
+        self.nlm = NLM(tgt_arity=target_dim, nlm_args=self.nlm_args, target_dim=self.action_channels)
+    
+    def forward(self, feed_dict):
+        next_actions = self.nlm(feed_dict)
+        return next_actions
+
+
+class ResNetNLM(nn.Module):
+    def __init__(self, config, mode):
+        super(ResNetNLM, self).__init__()
+        
+        # Build feature extractor
+        self.feature_extractor = LogicityFeatureExtractor()
+
+        # Build node concept predictor
+        ontology_file = config["ontology"]
+        self.mode = mode
+        self.read_ontology(ontology_file)
+
+        self.node_channels = len(self.node_concept_names)
+        node_pred_hidden = config["node_predictor"]["hidden"]
+
+        self.node_concept_predictor = nn.Sequential(
+            nn.Linear(self.feature_extractor.img_feature_channels, node_pred_hidden[0]),
+            nn.ReLU(),
+            nn.Linear(node_pred_hidden[0], node_pred_hidden[1]),
+            nn.ReLU(),
+            nn.Linear(node_pred_hidden[1], self.node_channels),
+            nn.Sigmoid(),
+        )
+
+        # Build edge concept predictor
+        # node attributes used for edge prediction: bbox + direction + priority
+        self.bbox_channels = config["bbox_channels"]
+        self.BBOX_POS_MAX = config["BBOX_POS_MAX"]
+        self.edge_channels = len(self.edge_concept_names)
+        edge_pred_hidden = config["node_predictor"]["hidden"]
+        self.edge_predictor = nn.Sequential(
+            nn.Linear(2*self.bbox_channels, edge_pred_hidden[0]),
+            nn.ReLU(),
+            nn.Linear(edge_pred_hidden[0], edge_pred_hidden[1]),
+            nn.ReLU(),
+            nn.Linear(edge_pred_hidden[1], self.edge_channels),
+            nn.Sigmoid(),
+        )
+
+        # Reasoning engine
+        nlm_args = config["nlm_args"]
+        nlm_args["input_dims"] = [0, len(self.node_concept_names), len(self.edge_concept_names), 0]
+        self.reasoning_engine = NLMReasoningEngine(self.action_names, config["nlm_args"], \
+                                                   config["nlm_arity"])
+
+
+    def read_ontology(self, ontology_file):
+
+        assert self.mode in ["easy", "medium", "hard", "expert"]
+        assert self.mode in ontology_file, "Ontology file does not contain mode: {}".format(self.mode)
+        with open(ontology_file, 'r') as file:
             self.ontology_config = yaml.load(file, Loader=yaml.Loader)
         self.node_concept_names = []
         self.edge_concept_names = []
@@ -53,54 +106,17 @@ class LogicityVisReasoningEngine(nn.Module):
                 self.edge_concept_names.append(predicate_name)
             else:
                 assert predicate_name in self.action_names, "Unknown predicate name: {}".format(predicate_name)
+            # additionally predict "Sees"
+        self.edge_concept_names.append("Sees")
 
-        # Build node concept predictor
-        self.node_channels = len(self.node_concept_names)
-        self.node_concept_predictor = nn.Sequential(
-            nn.Linear(img_feature_channels, 512),
-            nn.ReLU(),
-            nn.Linear(512, 256),
-            nn.ReLU(),
-            nn.Linear(256, self.node_channels),
-            nn.Sigmoid(),
-        )
+    def forward(self, batch_imgs, batch_bboxes, batch_directions, batch_priorities):
+        roi_features = self.feature_extractor(batch_imgs, batch_bboxes)
 
-        # Build edge concept predictor
-        # node attributes used for edge prediction: bbox + direction
-        self.bbox_channels = 4 + 4
-        self.BBOX_POS_MAX = 1024
-        # HigherPri can be directly calc by priority in nodes, no need to predict
-        assert "HigherPri" in self.edge_concept_names
-        self.edge_channels = len(self.edge_concept_names) - 1
-        self.edge_predictor = nn.Sequential(
-            nn.Linear(2*self.bbox_channels, 256),
-            nn.ReLU(),
-            nn.Linear(256, 64),
-            nn.ReLU(),
-            nn.Linear(64, self.edge_channels),
-            nn.Sigmoid(),
-        )
-
-        # Build action predictor
-        self.action_channels = len(self.action_names)
-        self.nlm_args = {
-            "input_dims": [0, len(self.node_concept_names), len(self.edge_concept_names), 0],
-            "output_dims": 8,
-            "logic_hidden_dim": [],
-            "exclude_self": True,
-            "depth": 4,
-            "breadth": 3,
-            "io_residual": False,
-            "residual": False,
-            "recursion": False,
-        }
-        self.nlm = NLM(tgt_arity=1, nlm_args=self.nlm_args, target_dim=self.action_channels)
-    
-    def forward(self, roi_features, batch_bboxes, batch_directions, batch_priorities):
+        # concept prediction
         device = roi_features.device
         B = roi_features.shape[0]
         N = roi_features.shape[1]
-        
+
         # Predict node concepts
         node_concepts = self.node_concept_predictor(roi_features) # B x N x concept_num
         
@@ -139,20 +155,6 @@ class LogicityVisReasoningEngine(nn.Module):
             "states": node_concepts, # B x N x C_node
             "relations": edge_attributes_.view(B, N, N, -1), # B x N x N x (C_edge+1)
         }
-        next_actions = self.nlm(feed_dict)
+        next_actions = self.reasoning_engine(feed_dict)
 
-        return next_actions, node_concepts, edge_attributes.view(B, N*(N-1), -1)        
-
-
-class LogicityVisPredictorNLM(nn.Module):
-    def __init__(self, mode):
-        super(LogicityVisPredictorNLM, self).__init__()
-
-        self.perceptor = LogicityVisPerceptor()
-        self.reasoning_engine = LogicityVisReasoningEngine(mode, self.perceptor.img_feature_channels)
-
-    def forward(self, batch_imgs, batch_bboxes, batch_directions, batch_priorities):
-        roi_features = self.perceptor(batch_imgs, batch_bboxes)
-        next_actions, unary_concepts, binary_concepts = \
-            self.reasoning_engine(roi_features, batch_bboxes, batch_directions, batch_priorities)
-        return next_actions, unary_concepts, binary_concepts
+        return next_actions, node_concepts, edge_attributes

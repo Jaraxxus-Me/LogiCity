@@ -2,7 +2,7 @@ import torch
 import yaml
 import torch.nn as nn
 from torch_geometric.nn import NNConv
-from logicity.predictor.neural.resnet_fpn import LogicityVisPerceptor
+from logicity.predictor.neural.resnet_fpn import LogicityFeatureExtractor
 
 
 class LogicityVisReasoningEngine(nn.Module):
@@ -115,7 +115,7 @@ class LogicityVisPredictorGNN(nn.Module):
     def __init__(self, mode):
         super(LogicityVisPredictorGNN, self).__init__()
 
-        self.perceptor = LogicityVisPerceptor()
+        self.perceptor = LogicityFeatureExtractor()
         self.reasoning_engine = LogicityVisReasoningEngine(mode, self.perceptor.img_feature_channels)
 
     def forward(self, batch_imgs, batch_bboxes, batch_directions, batch_priorities):

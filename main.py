@@ -439,7 +439,6 @@ def create_vis_dataset(args, logger):
     config = load_config(args.config)
     tmp_agent_yaml_file = "{}/tmp_agents.yaml".format(args.dataset_dir)
     simulation_config = config["simulation"]
-    simulation_config["agent_yaml_file"] = tmp_agent_yaml_file    
 
     # prepare agent concepts to choose from
     ontology_yaml_file = config["simulation"]["ontology_yaml_file"]
@@ -465,8 +464,12 @@ def create_vis_dataset(args, logger):
 
     for stage, world_num in world_num_dict.items():
         vis_dataset = {}
-        if args.exp == "expert_200_fixed":
-            simulation_config["agent_yaml_file"] = "config/agents/expert/{}.yaml".format(stage)
+        if "fixed" in args.exp:
+            simulation_config["agent_yaml_file"] = "config/agents/Vis/{}/{}.yaml".format(args.mode, stage)
+            print("Using fixed expert agents from {}".format(args.exp))
+        else:
+            simulation_config["agent_yaml_file"] = tmp_agent_yaml_file
+            print("Using random agents.")    
         # set min/max agent_num
         if stage == "train":
             min_agent_num = args.min_agent_num_train
@@ -489,7 +492,7 @@ def create_vis_dataset(args, logger):
             torch.manual_seed(seed)
             np.random.seed(seed)
 
-            if args.exp == "expert_200_fixed":
+            if "fixed" in args.exp:
                 pass
             else:
                 # Generate random agents
@@ -502,7 +505,7 @@ def create_vis_dataset(args, logger):
 
             # Main simulation loop
             city, cached_observation = CityLoader.from_yaml(**simulation_config)
-            if args.exp == "expert_200_fixed":
+            if "fixed" in args.exp:
                 agent_num = len(cached_observation["Static Info"]["Agents"].keys())
             steps = 0
             while steps < args.max_steps:

@@ -1,11 +1,12 @@
 import torch
 import torch.nn as nn
 import torchvision
+import yaml
 from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
 
-class LogicityVisPerceptor(nn.Module):
+class LogicityFeatureExtractor(nn.Module):
     def __init__(self):
-        super(LogicityVisPerceptor, self).__init__()
+        super(LogicityFeatureExtractor, self).__init__()
         
         # Build feature extractor
         self.resnet_layer_num = 4

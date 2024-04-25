@@ -62,6 +62,7 @@ class VisDataset(torch.utils.data.Dataset):
     def __init__(
             self,
             vis_dataset_path, 
+            debug=False,
             gt_vis=False,
         ):
 
@@ -69,6 +70,8 @@ class VisDataset(torch.utils.data.Dataset):
         with open(vis_dataset_path, "rb") as f:
             self.vis_dataset = pkl.load(f)
         self.vis_dataset_list = list(self.vis_dataset.keys())
+        if debug:
+            self.vis_dataset_list = self.vis_dataset_list[:4]
         self.data_size = len(self.vis_dataset_list)
         self.direction_dict = {
             "left": [1, 0, 0, 0],
@@ -178,6 +181,8 @@ class VisDataset(torch.utils.data.Dataset):
 
         bboxes = torch.Tensor(np.array(bboxes))
         priorities = torch.Tensor(np.array(priorities))
+        # normalize priorities
+        priorities = priorities / priorities.max()
         directions = torch.Tensor(np.array(direction_tensor_list))
         next_actions = torch.Tensor(np.array(next_actions)).to(torch.int64)
 
