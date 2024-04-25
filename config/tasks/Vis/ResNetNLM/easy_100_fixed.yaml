@@ -2,7 +2,7 @@ Data:
   dataset_name: easy_100_fixed
   data_path: vis_dataset/easy_100_fixed
   mode: easy
-  batch_size: 16
+  batch_size: 2
   debug: False
 Model:
   name: ResNetNLM
@@ -25,14 +25,14 @@ Model:
     exclude_self: True
   nlm_arity: 1
 Optimizer:
-  epochs: 100
+  epochs: 200
   grounding:
     type: Adam
-    lr: 0.0001
+    lr: 0.001
     weight_decay: 0.0001
     scheduler: None
   reasoning:
-    type: Adam
-    lr: 0.0001
+    type: AdamW
+    lr: 0.005
     weight_decay: 0.0001
     scheduler: None

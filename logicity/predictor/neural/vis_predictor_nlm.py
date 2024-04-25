@@ -60,9 +60,13 @@ class ResNetNLM(nn.Module):
 
         self.node_concept_predictor = nn.Sequential(
             nn.Linear(self.feature_extractor.img_feature_channels, node_pred_hidden[0]),
+            nn.BatchNorm1d(node_pred_hidden[0]),  # Batch normalization
             nn.ReLU(),
+            nn.Dropout(0.25),  # Dropout for regularization
             nn.Linear(node_pred_hidden[0], node_pred_hidden[1]),
+            nn.BatchNorm1d(node_pred_hidden[1]),
             nn.ReLU(),
+            nn.Dropout(0.25),
             nn.Linear(node_pred_hidden[1], self.node_channels),
             nn.Sigmoid(),
         )
@@ -110,6 +114,11 @@ class ResNetNLM(nn.Module):
         self.edge_concept_names.append("Sees")
 
     def forward(self, batch_imgs, batch_bboxes, batch_directions, batch_priorities):
+        node_concepts, edge_attributes = self.pred_concepts(batch_imgs, batch_bboxes, batch_directions, batch_priorities)
+        next_actions = self.reason(node_concepts, edge_attributes)
+        return next_actions, node_concepts, edge_attributes
+
+    def pred_concepts(self, batch_imgs, batch_bboxes, batch_directions, batch_priorities):
         roi_features = self.feature_extractor(batch_imgs, batch_bboxes)
 
         # concept prediction
@@ -118,43 +127,33 @@ class ResNetNLM(nn.Module):
         N = roi_features.shape[1]
 
         # Predict node concepts
-        node_concepts = self.node_concept_predictor(roi_features) # B x N x concept_num
+        node_concepts = self.node_concept_predictor(roi_features.view(-1, self.feature_extractor.img_feature_channels)) # B x N x concept_num
+        node_concepts = node_concepts.view(B, N, -1)
         
         # Create scene graph (node:(concept, bbox, direction, priority))
         # 1. concat node attributes use for edge prediction (bbox, direction)
-        node_attributes = torch.cat([batch_bboxes/self.BBOX_POS_MAX, batch_directions], dim=-1) # B x N x (4+4)
+        node_attributes = torch.cat([batch_bboxes/self.BBOX_POS_MAX, batch_directions, batch_priorities.unsqueeze(-1)], dim=-1) # B x N x (4+4+1)
         # 2. predict edge attributes
-        node_attributes_paired = torch.zeros(B, N, N-1, 16).to(device)
-        upper_pairing_idxs = torch.triu_indices(N, N, offset=1).to(device)
-        lower_pairing_idxs = torch.tril_indices(N, N, offset=-1).to(device)
-        node_attributes_paired[:, upper_pairing_idxs[0], upper_pairing_idxs[1]-1] = torch.cat([
-            node_attributes[:, upper_pairing_idxs[0]], node_attributes[:, upper_pairing_idxs[1]]
-        ], dim=-1)
-        node_attributes_paired[:, lower_pairing_idxs[0], lower_pairing_idxs[1]] = torch.cat([
-            node_attributes[:, lower_pairing_idxs[0]], node_attributes[:, lower_pairing_idxs[1]]
-        ], dim=-1)
-        node_attributes_paired = node_attributes_paired.view(B, (N*(N-1)), -1)
-        edge_attributes = self.edge_predictor(node_attributes_paired) # B x (N x (N-1)) x C_edge
-        # 3. add HigherPri to edge attributes
-        pri_mask = (batch_priorities.unsqueeze(2)>batch_priorities.unsqueeze(1)).to(torch.float32)
-        higher_pri = torch.zeros(B, N, N-1).to(device)
-        higher_pri[:, upper_pairing_idxs[0], upper_pairing_idxs[1]-1] = pri_mask[:, upper_pairing_idxs[0], upper_pairing_idxs[1]] 
-        higher_pri[:, lower_pairing_idxs[0], lower_pairing_idxs[1]] = pri_mask[:, lower_pairing_idxs[0], lower_pairing_idxs[1]]
-        higher_pri = higher_pri.view(B, -1)
-        edge_attributes = torch.cat([edge_attributes, higher_pri.unsqueeze(-1)], dim=-1) # B x (N x (N-1)) x (C_edge+1)
-        edge_attributes = edge_attributes.view(B, N, N-1, -1) # B x N x (N-1) x (C_edge+1)
+        node_attributes_paired = torch.zeros(B, N, N, 2*self.bbox_channels).to(device)
+        # pair node attributes
+        node_attr_expanded = node_attributes.unsqueeze(2).expand(B, N, N, self.bbox_channels)
+        node_attr_tiled = node_attributes.unsqueeze(1).expand(B, N, N, self.bbox_channels)
 
+        # Concatenate along the last dimension to pair the attributes
+        node_attributes_paired = torch.cat([node_attr_expanded, node_attr_tiled], dim=-1)
+        node_attributes_paired = node_attributes_paired.view(-1, 2*self.bbox_channels)
+        edge_attributes = self.edge_predictor(node_attributes_paired) # B x (N x N) x C_edge
+        edge_attributes = edge_attributes.view(B, N, N, -1)
+
+        return node_concepts, edge_attributes
+    
+    def reason(self, node_concepts, edge_attributes):
         # Predict actions
-        edge_attributes_ = torch.zeros(B, N, N, edge_attributes.shape[-1]).to(device)
-        edge_attributes_[:, upper_pairing_idxs[0], upper_pairing_idxs[1]] = \
-            edge_attributes[:, upper_pairing_idxs[0], upper_pairing_idxs[1]-1]
-        edge_attributes_[:, lower_pairing_idxs[0], lower_pairing_idxs[1]] = \
-            edge_attributes[:, lower_pairing_idxs[0], lower_pairing_idxs[1]]
         feed_dict = {
-            "n": torch.tensor([N]*B),
+            "n": torch.tensor([node_concepts.shape[1]]*node_concepts.shape[0]),
             "states": node_concepts, # B x N x C_node
-            "relations": edge_attributes_.view(B, N, N, -1), # B x N x N x (C_edge+1)
+            "relations": edge_attributes, # B x N x N x (C_edge+1)
         }
         next_actions = self.reasoning_engine(feed_dict)
 
-        return next_actions, node_concepts, edge_attributes
+        return next_actions

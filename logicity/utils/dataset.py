@@ -71,7 +71,7 @@ class VisDataset(torch.utils.data.Dataset):
             self.vis_dataset = pkl.load(f)
         self.vis_dataset_list = list(self.vis_dataset.keys())
         if debug:
-            self.vis_dataset_list = self.vis_dataset_list[:4]
+            self.vis_dataset_list = self.vis_dataset_list[:100]
         self.data_size = len(self.vis_dataset_list)
         self.direction_dict = {
             "left": [1, 0, 0, 0],
@@ -169,15 +169,16 @@ class VisDataset(torch.utils.data.Dataset):
         predicates_tensor_dict["unary"] = torch.stack(unary_list, dim=-1).to(torch.float)
         N = len(next_actions)
         binary_predicates_tensor = torch.stack(binary_list, dim=-1)
-        bin_C = binary_predicates_tensor.shape[-1]
-        binary_predicates_tensor_compressed = torch.zeros(N, N-1, bin_C).to(torch.bool)
-        upper_idxs = torch.triu_indices(N, N, offset=1)
-        lower_idxs = torch.tril_indices(N, N, offset=-1)
-        binary_predicates_tensor_compressed[upper_idxs[0], upper_idxs[1]-1] = \
-            binary_predicates_tensor[upper_idxs[0], upper_idxs[1]]
-        binary_predicates_tensor_compressed[lower_idxs[0], lower_idxs[1]] = \
-            binary_predicates_tensor[lower_idxs[0], lower_idxs[1]]
-        predicates_tensor_dict["binary"] = binary_predicates_tensor_compressed.view(-1, bin_C).to(torch.float)
+        binary_predicates_tensor = binary_predicates_tensor.to(torch.float)
+        # bin_C = binary_predicates_tensor.shape[-1]
+        # binary_predicates_tensor_compressed = torch.zeros(N, N-1, bin_C).to(torch.bool)
+        # upper_idxs = torch.triu_indices(N, N, offset=1)
+        # lower_idxs = torch.tril_indices(N, N, offset=-1)
+        # binary_predicates_tensor_compressed[upper_idxs[0], upper_idxs[1]-1] = \
+        #     binary_predicates_tensor[upper_idxs[0], upper_idxs[1]]
+        # binary_predicates_tensor_compressed[lower_idxs[0], lower_idxs[1]] = \
+        #     binary_predicates_tensor[lower_idxs[0], lower_idxs[1]]
+        predicates_tensor_dict["binary"] = binary_predicates_tensor
 
         bboxes = torch.Tensor(np.array(bboxes))
         priorities = torch.Tensor(np.array(priorities))

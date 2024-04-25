@@ -33,7 +33,6 @@ def get_parser():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=str, default='config/tasks/Vis/ResNetNLM/easy_100_fixed.yaml', help='Path to the config file.')
     parser.add_argument("--exp", type=str, default='resnet_gnn')
-    parser.add_argument("--add_concept_loss", action='store_true', help='Add concept_loss in addition to action_loss.')
     parser.add_argument('--bilevel', action='store_true', help='Train the model in a bilevel style.')
     parser.add_argument('--only_supervise_car', action='store_true', help='Only supervise the actions of car.')
     return parser.parse_args()
@@ -77,8 +76,10 @@ def build_optimizer(params, opt_config):
 
     if optim_type == 'Adam':
         optimizer = torch.optim.Adam(params, lr=lr)
+    elif optim_type == 'AdamW':
+        optimizer = torch.optim.AdamW(params, lr=lr)
     else:
-        raise NotImplementedError("Optimizer type {} not implemented.".format(optim_type))
+        raise ValueError("Optimizer type not supported.")
 
     return optimizer
 
@@ -92,7 +93,9 @@ def train(args):
     model = CUDA(model)
 
     grounding_opt_config = config["Optimizer"]["grounding"]
-    grounding_params = list(model.node_concept_predictor.parameters()) + list(model.edge_predictor.parameters())
+    grounding_params = list(model.node_concept_predictor.parameters()) + \
+                        list(model.edge_predictor.parameters()) + \
+                        list(model.feature_extractor.parameters())
     grounding_optimizer = build_optimizer(grounding_params, grounding_opt_config)
     reasoning_opt_config = config["Optimizer"]["reasoning"]
     reasoning_optimizer = build_optimizer(model.reasoning_engine.parameters(), reasoning_opt_config)
@@ -110,7 +113,7 @@ def train(args):
     best_acc = -1
     epochs = config['Optimizer']['epochs']
     for epoch in range(epochs):
-        loss_train, loss_val = 0., 0.
+        loss_train_concepts, loss_train_actions, loss_val = 0., 0., 0.
         acc_train, acc_val = 0., 0.
 
         action_total = [0, 0, 0, 0, 0, 0, 0, 0]
@@ -121,8 +124,12 @@ def train(args):
             gt_unary_concepts = CUDA(batch["predicates"]["unary"])
             gt_binary_concepts = CUDA(batch["predicates"]["binary"])
             # TODO: for zhaoyu, gt_binary_concepts[:, -1] is the concept of "sees", use 11x10 matrix to represent the edge
-            edge = gt_binary_concepts[:, :, -1].reshape(-1, 11, 10)
-            pred_actions, pred_unary_concepts, pred_binary_concepts = model(CUDA(batch["img"]), CUDA(batch["bboxes"]), CUDA(batch["directions"]), CUDA(batch["priorities"]))
+            pred_unary_concepts, pred_binary_concepts = model.pred_concepts(CUDA(batch["img"]), CUDA(batch["bboxes"]), CUDA(batch["directions"]), CUDA(batch["priorities"]))
+            # cut the gradient for nlm here
+            pred_unary_concepts_nlm = pred_unary_concepts.detach()
+            pred_binary_concepts_nlm = pred_binary_concepts.detach()
+
+            pred_actions = model.reason(pred_unary_concepts_nlm, pred_binary_concepts_nlm)
             
             if args.only_supervise_car:
                 is_car_mask = CUDA(batch["car_mask"])
@@ -139,16 +146,20 @@ def train(args):
                 loss_actions = loss_ce(pred_actions, gt_actions)
             else:
                 loss_actions = loss_ce(pred_actions.reshape(-1, 4), gt_actions.reshape(-1))
-            loss = 0.0
-            if args.add_concept_loss:
-                loss_concepts = loss_bce(pred_unary_concepts.reshape(-1), gt_unary_concepts.reshape(-1)) \
-                                + loss_bce(pred_binary_concepts.reshape(-1), gt_binary_concepts.reshape(-1))
-                loss += loss_concepts
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            scheduler.step()
-            loss_train += loss.item()
+            
+            loss_concepts = loss_bce(pred_unary_concepts.reshape(-1), gt_unary_concepts.reshape(-1)) \
+                            + loss_bce(pred_binary_concepts.reshape(-1), gt_binary_concepts.reshape(-1))
+            
+            grounding_optimizer.zero_grad()
+            loss_concepts.backward()
+            grounding_optimizer.step()
+
+            reasoning_optimizer.zero_grad()
+            loss_actions.backward()
+            reasoning_optimizer.step()
+
+            loss_train_concepts += loss_concepts.item()
+            loss_train_actions += loss_actions.item()
             acc, action_results_list = compute_action_acc(pred_actions, gt_actions)
             acc_train += acc
             for i, a in enumerate(action_results_list):
@@ -224,10 +235,11 @@ def train(args):
             #         'acc_val_weighted': val_action_weighted_acc,
             #     })
 
-        loss_train /= len(train_dataset)
+        loss_train_concepts /= len(train_dataset)
+        loss_train_actions /= len(train_dataset)
         acc_train /= len(train_dataset)
-        print("Epoch: {},Training Loss: {:.4f}, Sample Avg Acc: {:.4f}, lr: {}".format(
-            epoch, loss_train, acc_train, optimizer.state_dict()['param_groups'][0]['lr']))
+        print("Epoch: {}, Training Loss (Concepts): {:.4f}, Training Loss (Actions): {:.4f}, Sample Avg Acc: {:.4f}".format(
+            epoch, loss_train_concepts, loss_train_actions, acc_train))
         slow_acc = action_total[0] / action_total[1]
         normal_acc = action_total[2] / action_total[3]
         fast_acc = action_total[4] / action_total[5]
@@ -249,30 +261,32 @@ def train(args):
 
         wandb.log({
             'epoch': epoch,
-            'learning rate': optimizer.state_dict()['param_groups'][0]['lr'],
-            'loss_train': loss_train,
+            'learning rate (grounding)': grounding_optimizer.state_dict()['param_groups'][0]['lr'],
+            'learning rate (reasoning)': reasoning_optimizer.state_dict()['param_groups'][0]['lr'],
+            'loss_train_concept': loss_train_concepts,
+            'loss_train_action': loss_train_actions,
             'acc_train': acc_train,
             'acc_train_weighted': action_weighted_acc,
         })
 
         # if (epoch + 1) % 5 == 0:
-        if True:
-            if not os.path.exists("vis_input_weights/{}/{}".format(mode, args.exp)):
-                os.makedirs("vis_input_weights/{}/{}".format(mode, args.exp))
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'loss': loss_val,
-            }, "vis_input_weights/{}/{}/{}_lr{}_epoch{}_valacc{:.4f}.pth".format(mode, args.exp, args.exp, lr, epoch, acc_val))
-            if best_acc < acc_val:
-                best_acc = acc_val
-                torch.save({
-                    'epoch': epoch,
-                    'model_state_dict': model.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict(),
-                    'loss': loss_val,
-                }, "vis_input_weights/{}/{}/{}_best.pth".format(mode, args.exp, args.exp))
+        # if True:
+        #     if not os.path.exists("vis_input_weights/{}/{}".format(mode, args.exp)):
+        #         os.makedirs("vis_input_weights/{}/{}".format(mode, args.exp))
+        #     torch.save({
+        #         'epoch': epoch,
+        #         'model_state_dict': model.state_dict(),
+        #         'optimizer_state_dict': optimizer.state_dict(),
+        #         'loss': loss_val,
+        #     }, "vis_input_weights/{}/{}/{}_lr{}_epoch{}_valacc{:.4f}.pth".format(mode, args.exp, args.exp, lr, epoch, acc_val))
+        #     if best_acc < acc_val:
+        #         best_acc = acc_val
+        #         torch.save({
+        #             'epoch': epoch,
+        #             'model_state_dict': model.state_dict(),
+        #             'optimizer_state_dict': optimizer.state_dict(),
+        #             'loss': loss_val,
+        #         }, "vis_input_weights/{}/{}/{}_best.pth".format(mode, args.exp, args.exp))
 
     wandb.finish()
 
