@@ -167,73 +167,72 @@ def train(args):
 
             iter_num += 1
             # validation
-            # if iter_num % len(train_dataloader) == 0:
-            #     # evaluate the accuracy and loss on val set
-            #     with torch.no_grad():
-            #         val_action_total = [0, 0, 0, 0, 0, 0, 0, 0]
-            #         for batch in tqdm(val_dataloader):
-            #             gt_actions = CUDA(batch["next_actions"])
-            #             gt_unary_concepts = CUDA(batch["predicates"]["unary"])
-            #             gt_binary_concepts = CUDA(batch["predicates"]["binary"])
-            #             pred_actions, pred_unary_concepts, pred_binary_concepts = model(CUDA(batch["img"]), CUDA(batch["bboxes"]), CUDA(batch["directions"]), CUDA(batch["priorities"]))
+            if iter_num % len(train_dataloader) == 0:
+                # evaluate the accuracy and loss on val set
+                with torch.no_grad():
+                    val_action_total = [0, 0, 0, 0, 0, 0, 0, 0]
+                    for batch in tqdm(val_dataloader):
+                        gt_actions = CUDA(batch["next_actions"])
+                        gt_unary_concepts = CUDA(batch["predicates"]["unary"])
+                        gt_binary_concepts = CUDA(batch["predicates"]["binary"])
+                        pred_actions, pred_unary_concepts, pred_binary_concepts = model(CUDA(batch["img"]), CUDA(batch["bboxes"]), CUDA(batch["directions"]), CUDA(batch["priorities"]))
                         
-            #             if args.only_supervise_car:
-            #                 is_car_mask = CUDA(batch["car_mask"])
-            #                 car_gt_num = torch.sum(is_car_mask)
-            #                 car_action_gt_num_list = []
-            #                 for i in range(4):
-            #                     car_action_gt_num_list.append(torch.sum((gt_actions == i) * is_car_mask))
-            #                 car_action_gt_nums = torch.FloatTensor(car_action_gt_num_list).to(is_car_mask.device)
-            #                 class_weights = car_gt_num / (car_action_gt_nums + 1e-6)
-            #                 is_car_mask = is_car_mask.bool().reshape(-1)
-            #                 pred_actions = pred_actions.reshape(-1, 4)[is_car_mask]
-            #                 gt_actions = gt_actions.reshape(-1)[is_car_mask]
-            #                 loss_ce = nn.CrossEntropyLoss(weight=CUDA(class_weights))
-            #                 loss_actions = loss_ce(pred_actions, gt_actions)
-            #             else:
-            #                 loss_actions = loss_ce(pred_actions, gt_actions)
-            #             loss = loss_actions
-            #             if args.add_concept_loss:
-            #                 loss_concepts = loss_bce(pred_unary_concepts, gt_unary_concepts) \
-            #                                 + loss_bce(pred_binary_concepts, gt_binary_concepts)
-            #                 loss += loss_concepts
-            #             loss_val += loss.item()
-            #             acc, val_action_results_list = compute_action_acc(pred_actions, gt_actions)
-            #             acc_val += acc
+                        if args.only_supervise_car:
+                            is_car_mask = CUDA(batch["car_mask"])
+                            car_gt_num = torch.sum(is_car_mask)
+                            car_action_gt_num_list = []
+                            for i in range(4):
+                                car_action_gt_num_list.append(torch.sum((gt_actions == i) * is_car_mask))
+                            car_action_gt_nums = torch.FloatTensor(car_action_gt_num_list).to(is_car_mask.device)
+                            class_weights = car_gt_num / (car_action_gt_nums + 1e-6)
+                            is_car_mask = is_car_mask.bool().reshape(-1)
+                            pred_actions = pred_actions.reshape(-1, 4)[is_car_mask]
+                            gt_actions = gt_actions.reshape(-1)[is_car_mask]
+                            loss_ce = nn.CrossEntropyLoss(weight=CUDA(class_weights))
+                            loss_actions = loss_ce(pred_actions, gt_actions)
+                        else:
+                            loss_actions = loss_ce(pred_actions, gt_actions)
+                        loss = loss_actions
+                        loss_concepts = loss_bce(pred_unary_concepts, gt_unary_concepts) \
+                                        + loss_bce(pred_binary_concepts, gt_binary_concepts)
+                        loss += loss_concepts
+                        loss_val += loss.item()
+                        acc, val_action_results_list = compute_action_acc(pred_actions, gt_actions)
+                        acc_val += acc
 
-            #             for i, a in enumerate(val_action_results_list):
-            #                 val_action_total[i] += a
+                        for i, a in enumerate(val_action_results_list):
+                            val_action_total[i] += a
 
-            #     loss_val /= len(val_dataset)
-            #     acc_val /= len(val_dataset)
-            #     print("Epoch: {}, Iter: {}, Validation Loss: {:.4f}, Sample Avg Acc: {:.4f}".format(
-            #         epoch, iter_num, loss_val, acc_val))
+                loss_val /= len(val_dataset)
+                acc_val /= len(val_dataset)
+                print("Epoch: {}, Iter: {}, Validation Loss: {:.4f}, Sample Avg Acc: {:.4f}".format(
+                    epoch, iter_num, loss_val, acc_val))
                 
-            #     val_slow_acc = val_action_total[0] / val_action_total[1]
-            #     val_normal_acc = val_action_total[2] / val_action_total[3]
-            #     val_fast_acc = val_action_total[4] / val_action_total[5]
-            #     val_stop_acc = val_action_total[6] / val_action_total[7]
+                val_slow_acc = val_action_total[0] / val_action_total[1]
+                val_normal_acc = val_action_total[2] / val_action_total[3]
+                val_fast_acc = val_action_total[4] / val_action_total[5]
+                val_stop_acc = val_action_total[6] / val_action_total[7]
 
-            #     val_action_factor = 1 / val_action_total[1] + 1 / val_action_total[3] \
-            #                     + 1 / val_action_total[5] + 1 / val_action_total[7]
+                val_action_factor = 1 / val_action_total[1] + 1 / val_action_total[3] \
+                                + 1 / val_action_total[5] + 1 / val_action_total[7]
 
-            #     val_action_weighted_acc = (val_slow_acc / val_action_total[1] \
-            #                                + val_normal_acc / val_action_total[3] \
-            #                                + val_fast_acc / val_action_total[5] \
-            #                                + val_stop_acc / val_action_total[7]) / val_action_factor
+                val_action_weighted_acc = (val_slow_acc / val_action_total[1] \
+                                           + val_normal_acc / val_action_total[3] \
+                                           + val_fast_acc / val_action_total[5] \
+                                           + val_stop_acc / val_action_total[7]) / val_action_factor
 
-            #     print("Slow: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(val_action_total[0], val_action_total[1], val_slow_acc))
-            #     print("Normal: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(val_action_total[2], val_action_total[3], val_normal_acc))
-            #     print("Fast: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(val_action_total[4], val_action_total[5], val_fast_acc))
-            #     print("Stop: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(val_action_total[6], val_action_total[7], val_stop_acc))
-            #     print("Action Weighted Acc: {:.4f}".format(val_action_weighted_acc))
+                print("Slow: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(val_action_total[0], val_action_total[1], val_slow_acc))
+                print("Normal: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(val_action_total[2], val_action_total[3], val_normal_acc))
+                print("Fast: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(val_action_total[4], val_action_total[5], val_fast_acc))
+                print("Stop: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(val_action_total[6], val_action_total[7], val_stop_acc))
+                print("Action Weighted Acc: {:.4f}".format(val_action_weighted_acc))
                 
-            #     wandb.log({
-            #         'iter': epoch*len(train_dataloader) + iter_num,
-            #         'loss_val': loss_val,
-            #         'acc_val': acc_val,
-            #         'acc_val_weighted': val_action_weighted_acc,
-            #     })
+                wandb.log({
+                    'iter': epoch*len(train_dataloader) + iter_num,
+                    'loss_val': loss_val,
+                    'acc_val': acc_val,
+                    'acc_val_weighted': val_action_weighted_acc,
+                })
 
         loss_train_concepts /= len(train_dataset)
         loss_train_actions /= len(train_dataset)
@@ -269,24 +268,25 @@ def train(args):
             'acc_train_weighted': action_weighted_acc,
         })
 
-        # if (epoch + 1) % 5 == 0:
-        # if True:
-        #     if not os.path.exists("vis_input_weights/{}/{}".format(mode, args.exp)):
-        #         os.makedirs("vis_input_weights/{}/{}".format(mode, args.exp))
-        #     torch.save({
-        #         'epoch': epoch,
-        #         'model_state_dict': model.state_dict(),
-        #         'optimizer_state_dict': optimizer.state_dict(),
-        #         'loss': loss_val,
-        #     }, "vis_input_weights/{}/{}/{}_lr{}_epoch{}_valacc{:.4f}.pth".format(mode, args.exp, args.exp, lr, epoch, acc_val))
-        #     if best_acc < acc_val:
-        #         best_acc = acc_val
-        #         torch.save({
-        #             'epoch': epoch,
-        #             'model_state_dict': model.state_dict(),
-        #             'optimizer_state_dict': optimizer.state_dict(),
-        #             'loss': loss_val,
-        #         }, "vis_input_weights/{}/{}/{}_best.pth".format(mode, args.exp, args.exp))
+        if (epoch + 1) % 2 == 0:
+            if not os.path.exists("vis_input_weights/{}/{}".format(config['Data']['mode'], args.exp)):
+                os.makedirs("vis_input_weights/{}/{}".format(config['Data']['mode'], args.exp))
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'grounder_optimizer_state_dict': grounding_optimizer.state_dict(),
+                'reasoning_optimizer_state_dict': reasoning_optimizer.state_dict(),
+                'loss': loss_val,
+            }, "vis_input_weights/{}/{}/{}_epoch{}_valacc{:.4f}.pth".format(config['Data']['mode'], args.exp, args.exp, epoch, acc_val))
+            if best_acc < acc_val:
+                best_acc = acc_val
+                torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'grounder_optimizer_state_dict': grounding_optimizer.state_dict(),
+                'reasoning_optimizer_state_dict': reasoning_optimizer.state_dict(),
+                'loss': loss_val,
+            }, "vis_input_weights/{}/{}/{}_best.pth".format(config['Data']['mode'], args.exp, args.exp))
 
     wandb.finish()
 
