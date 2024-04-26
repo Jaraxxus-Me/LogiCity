@@ -111,15 +111,106 @@ class LogicityVisReasoningEngine(nn.Module):
 
         return next_actions, node_concepts_explicit[0], edge_attributes[0]
 
-class LogicityVisPredictorGNN(nn.Module):
-    def __init__(self, mode):
-        super(LogicityVisPredictorGNN, self).__init__()
+class ResNetGNN(nn.Module):
+    def __init__(self, config, mode):
+        super(ResNetGNN, self).__init__()
 
-        self.perceptor = LogicityFeatureExtractor()
-        self.reasoning_engine = LogicityVisReasoningEngine(mode, self.perceptor.img_feature_channels)
+        # Build feature extractor
+        self.feature_extractor = LogicityFeatureExtractor()
+
+        # Build node concept predictor
+        ontology_file = config["ontology"]
+        self.mode = mode
+        self.read_ontology(ontology_file)
+
+        node_pred_hidden = config["node_predictor"]["hidden"]
+        self.node_channels = len(self.node_concept_names)*node_pred_hidden[2]
+
+        self.node_concept_predictor = nn.Sequential(
+            nn.Linear(self.feature_extractor.img_feature_channels, node_pred_hidden[0]),
+            nn.BatchNorm1d(node_pred_hidden[0]),  # Batch normalization
+            nn.ReLU(),
+            nn.Dropout(0.25),  # Dropout for regularization
+            nn.Linear(node_pred_hidden[0], node_pred_hidden[1]),
+            nn.BatchNorm1d(node_pred_hidden[1]),
+            nn.ReLU(),
+            nn.Dropout(0.25),
+            nn.Linear(node_pred_hidden[1], self.node_channels),
+        )
+        self.node_concept_interpreter = nn.Sequential(
+            nn.Linear(self.node_channels, len(self.node_concept_names)),
+            nn.Sigmoid(),
+        )
+
+        # Build edge concept predictor
+        # node attributes used for edge prediction: bbox + direction + priority
+        self.bbox_channels = config["bbox_channels"]
+        self.BBOX_POS_MAX = config["BBOX_POS_MAX"]
+        self.edge_channels = len(self.edge_concept_names)
+        edge_pred_hidden = config["node_predictor"]["hidden"]
+        self.edge_predictor = nn.Sequential(
+            nn.Linear(2*self.bbox_channels, edge_pred_hidden[0]),
+            nn.ReLU(),
+            nn.Linear(edge_pred_hidden[0], edge_pred_hidden[1]),
+            nn.ReLU(),
+            nn.Linear(edge_pred_hidden[1], self.edge_channels),
+            nn.Sigmoid(),
+        )
+
+        # Reasoning engine
+        gnn_config = config["gnn"]
+        self.action_channels = len(self.action_names)
+        self.edge_processor = nn.Sequential(
+            nn.Linear(self.edge_channels, gnn_config["hidden"]),
+            nn.ReLU(),
+            nn.Linear(gnn_config["hidden"], self.node_channels*self.action_channels)
+        ) # A neural network that maps edge features edge_attr of shape [-1, num_edge_features] to shape [-1, in_channels * out_channels]
+        self.reasoning_engine = NNConv(in_channels=self.node_channels, out_channels=self.action_channels, nn=self.edge_processor) # don't support batch operation
 
     def forward(self, batch_imgs, batch_bboxes, batch_directions, batch_priorities):
         roi_features = self.perceptor(batch_imgs, batch_bboxes)
         next_actions, unary_concepts, binary_concepts = \
             self.reasoning_engine(roi_features, batch_bboxes, batch_directions, batch_priorities)
         return next_actions, unary_concepts, binary_concepts
+
+    def pred_concepts(self, batch_imgs, batch_bboxes, batch_directions, batch_priorities):
+        roi_features = self.feature_extractor(batch_imgs, batch_bboxes)
+
+        # concept prediction
+        device = roi_features.device
+        B = roi_features.shape[0]
+        N = roi_features.shape[1]
+
+        # Predict node concepts
+        node_concepts = self.node_concept_predictor(roi_features) # B x N x (concept_num x 256)
+        # TODO: How to interpret the node_concepts?
+        node_concepts_explicit = self.node_concept_interpreter(node_concepts)
+
+        # Create scene graph (node:(concept, bbox, direction, priority))
+        # 1. concat node attributes use for edge prediction (bbox, direction)
+        node_attributes = torch.cat([batch_bboxes/self.BBOX_POS_MAX, batch_directions, batch_priorities.unsqueeze(-1)], dim=-1) # B x N x (4+4+1)
+        # 2. predict edge attributes
+        node_attributes_paired = torch.zeros(B, N, N-1, 16).to(device)
+        upper_pairing_idxs = torch.triu_indices(N, N, offset=1).to(device)
+        lower_pairing_idxs = torch.tril_indices(N, N, offset=-1).to(device)
+        node_attributes_paired[:, upper_pairing_idxs[0], upper_pairing_idxs[1]-1] = torch.cat([
+            node_attributes[:, upper_pairing_idxs[0]], node_attributes[:, upper_pairing_idxs[1]]
+        ], dim=-1)
+        node_attributes_paired[:, lower_pairing_idxs[0], lower_pairing_idxs[1]] = torch.cat([
+            node_attributes[:, lower_pairing_idxs[0]], node_attributes[:, lower_pairing_idxs[1]]
+        ], dim=-1)
+        node_attributes_paired = node_attributes_paired.view(B, (N*(N-1)), -1)
+        edge_attributes = self.edge_predictor(node_attributes_paired) # B x (N x (N-1)) x C_edge
+
+        return node_concepts, edge_attributes
+
+    def reason(self, node_concepts, edge_attributes):
+        N = node_concepts.shape[1]
+        device = node_concepts.device
+
+        tmp_idx = torch.arange(N)
+        i, j = torch.meshgrid(tmp_idx, tmp_idx, indexing='ij')
+        tmp_mask = (i != j)
+        edge_idxs = torch.stack((i[tmp_mask],j[tmp_mask]),dim=1).T.to(device) # 2 x (N x (N-1))
+        next_actions = self.reasoning_engine(node_concepts, edge_attributes, edge_idxs)
+        return next_actions

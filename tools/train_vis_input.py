@@ -24,10 +24,11 @@ class FocalLoss(nn.Module):
 
 def get_parser():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=str, default='config/tasks/Vis/ResNetNLM/easy_200_fixed.yaml', help='Path to the config file.')
-    parser.add_argument("--exp", type=str, default='resnet_nlm')
+    parser.add_argument("--config", type=str, default='config/tasks/Vis/ResNetGNN/easy_200_fixed.yaml', help='Path to the config file.')
+    parser.add_argument("--exp", type=str, default='resnet_gnn')
     parser.add_argument('--bilevel', action='store_true', help='Train the model in a bilevel style.')
     parser.add_argument('--only_supervise_car', default=True, help='Only supervise the car actions.')
+    parser.add_argument('--add_concept_loss', default=True, help='Only supervise the car actions.')
     return parser.parse_args()
 
 def train(args):
@@ -94,8 +95,9 @@ def train(args):
             else:
                 loss_actions = loss_ce(pred_actions.reshape(-1, 4), gt_actions.reshape(-1))
             
-            loss_concepts = loss_bce(pred_unary_concepts.reshape(-1), gt_unary_concepts.reshape(-1)) \
-                            + loss_bce(pred_binary_concepts.reshape(-1), gt_binary_concepts.reshape(-1))
+            if args.add_concept_loss:
+                loss_concepts = loss_bce(pred_unary_concepts.reshape(-1), gt_unary_concepts.reshape(-1)) \
+                                + loss_bce(pred_binary_concepts.reshape(-1), gt_binary_concepts.reshape(-1))
             
             grounding_optimizer.zero_grad()
             loss_concepts.backward()
