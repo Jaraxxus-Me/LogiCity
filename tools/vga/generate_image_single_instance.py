@@ -5,7 +5,7 @@ from diffusers.utils import load_image, make_image_grid
 import ast
 
 base = AutoPipelineForImage2Image.from_pretrained(
-    "/shared_data/p_vidalr/jinqiluo/model/diffuser/stable-diffusion-xl-base-1.0", 
+    ".external/stable-diffusion-xl-base-1.0", 
     torch_dtype=torch.float16, 
     variant="fp16", 
     use_safetensors=True,

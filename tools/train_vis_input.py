@@ -24,7 +24,7 @@ class FocalLoss(nn.Module):
 
 def get_parser():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=str, default='config/tasks/Vis/ResNetGNN/easy_200_fixed_e2e.yaml', help='Path to the config file.')
+    parser.add_argument("--config", type=str, default='config/tasks/Vis/ResNetNLM/easy_200_fixed_modular.yaml', help='Path to the config file.')
     parser.add_argument("--exp", type=str, default='resnet_gnn_e2e')
     parser.add_argument("--modular", action='store_true', help='Train the model in a modular style.')
     parser.add_argument('--bilevel', action='store_true', help='Train the model in a bilevel style.')
@@ -116,7 +116,7 @@ def train_modular(args):
 
             iter_num += 1
             # validation
-            if iter_num % len(train_dataloader) == 0:
+            if iter_num % len(train_dataloader) == 0 and (not data_config["debug"]):    
                 # evaluate the accuracy and loss on val set
                 with torch.no_grad():
                     val_action_total = [0, 0, 0, 0, 0, 0, 0, 0]
@@ -217,7 +217,7 @@ def train_modular(args):
             'acc_train_weighted': action_weighted_acc,
         })
 
-        if (epoch + 1) % 2 == 0:
+        if (epoch + 1) % 2 == 0 and (not data_config["debug"]):    
             if not os.path.exists("vis_input_weights/{}/{}".format(config['Data']['mode'], args.exp)):
                 os.makedirs("vis_input_weights/{}/{}".format(config['Data']['mode'], args.exp))
             torch.save({
@@ -314,7 +314,7 @@ def train_e2e(args):
 
             iter_num += 1
             # validation
-            if iter_num % len(train_dataloader) == 0:
+            if iter_num % len(train_dataloader) == 0 and (not data_config["debug"]):    
                 # evaluate the accuracy and loss on val set
                 with torch.no_grad():
                     val_action_total = [0, 0, 0, 0, 0, 0, 0, 0]
@@ -412,7 +412,7 @@ def train_e2e(args):
             'acc_train_weighted': action_weighted_acc,
         })
 
-        if (epoch + 1) % 2 == 0:
+        if (epoch + 1) % 2 == 0 and (not data_config["debug"]):    
             if not os.path.exists("vis_input_weights/{}/{}".format(config['Data']['mode'], args.exp)):
                 os.makedirs("vis_input_weights/{}/{}".format(config['Data']['mode'], args.exp))
             torch.save({
@@ -575,6 +575,8 @@ def train_bilevel(args):
 
 if __name__ == "__main__":
     args = get_parser()
+    os.environ['WANDB__SERVICE_WAIT'] = "300"
+    os.environ['WANDB_API_KEY'] = 'f510977768bfee8889d74a65884aeec5f45a578f'
     if args.bilevel:
         train_bilevel(args)
     else:

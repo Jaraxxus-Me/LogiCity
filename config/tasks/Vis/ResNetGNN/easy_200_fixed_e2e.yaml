@@ -3,7 +3,7 @@ Data:
   data_path: vis_dataset/easy_200_fixed
   mode: easy
   batch_size: 1 #only supports 1
-  debug: False
+  debug: false
 Model:
   name: ResNetGNN
   backbone: resnet50
@@ -17,9 +17,9 @@ Model:
   gnn:
     hidden: 128
 Optimizer:
-  epochs: 200
+  epochs: 50
   whole:
     type: AdamW
-    lr: 0.001
+    lr: 0.0005
     weight_decay: 0.0001
     scheduler: None

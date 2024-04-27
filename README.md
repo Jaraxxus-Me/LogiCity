@@ -122,7 +122,8 @@ git checkout vis
 bash scripts/vis/easy/create_vis_dataset_easy_fixed.sh
 
 # train the model with vis dataset
-python tools/train_vis_input.py --config config/tasks/Vis/ResNetNLM/easy_200_fixed.yaml --exp resnet_nlm_easy
+# easy_200_fixed, modular nlm, e2e gnn and e2e nlm
+scripts/vis/easy/train_all.sh
 ```
 
 ## Branches
