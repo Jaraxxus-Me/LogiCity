@@ -6,7 +6,7 @@ import ast
 import os
 
 base = AutoPipelineForImage2Image.from_pretrained(
-    "/shared_data/p_vidalr/jinqiluo/model/diffuser/stable-diffusion-xl-base-1.0",  # this path should be "Your local dir" mentioned in readme.md
+    "/home/qiweidu/projects/LogiCity/diffusion_weights",  # this path should be "Your local dir" mentioned in readme.md
     torch_dtype=torch.float16, 
     variant="fp16", 
     use_safetensors=True,
@@ -14,7 +14,7 @@ base = AutoPipelineForImage2Image.from_pretrained(
 ).to("cuda")
 
 refiner = AutoPipelineForImage2Image.from_pretrained(
-    "/shared_data/p_vidalr/jinqiluo/model/diffuser/stable-diffusion-xl-refiner-1.0", # this path should be "Your local dir" mentioned in readme.md
+    "/home/qiweidu/projects/LogiCity/diffusion_weights", # this path should be "Your local dir" mentioned in readme.md
     text_encoder_2=base.text_encoder_2,
     vae=base.vae,
     torch_dtype=torch.float16,
@@ -60,10 +60,10 @@ for each_concept, each_image in zip(concept_list, image_list):
         prompt_list = ast.literal_eval(content)
 
     for each_index, each_prompt in enumerate(prompt_list):
-        print(each_prompt)
+        print("Prompt:", each_prompt)
         for edit_strength in edit_strength_list:
             for i in range(5):
-                print(f"Generating image {i}")
+                print(f"Edit strength {edit_strength}, Generating image {i}")
                 image_base = base(
                     prompt=[each_prompt],
                     negative_prompt=[''],
