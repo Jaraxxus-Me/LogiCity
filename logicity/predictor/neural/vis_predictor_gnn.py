@@ -188,10 +188,9 @@ class ResNetGNN(nn.Module):
         self.edge_concept_names.append("Sees")
 
     def forward(self, batch_imgs, batch_bboxes, batch_directions, batch_priorities):
-        roi_features = self.perceptor(batch_imgs, batch_bboxes)
-        next_actions, unary_concepts, binary_concepts = \
-            self.reasoning_engine(roi_features, batch_bboxes, batch_directions, batch_priorities)
-        return next_actions, unary_concepts, binary_concepts
+        node_concepts, edge_attributes = self.pred_concepts(batch_imgs, batch_bboxes, batch_directions, batch_priorities)
+        next_actions = self.reason(node_concepts, edge_attributes)
+        return next_actions, node_concepts, edge_attributes
 
     def pred_concepts(self, batch_imgs, batch_bboxes, batch_directions, batch_priorities):
         roi_features = self.feature_extractor(batch_imgs, batch_bboxes)

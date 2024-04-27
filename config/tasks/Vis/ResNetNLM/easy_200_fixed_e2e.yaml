@@ -3,7 +3,7 @@ Data:
   data_path: vis_dataset/easy_200_fixed
   mode: easy
   batch_size: 2
-  debug: False
+  debug: false
 Model:
   name: ResNetNLM
   backbone: resnet50
@@ -25,7 +25,7 @@ Model:
     exclude_self: True
   nlm_arity: 1
 Optimizer:
-  epochs: 200
+  epochs: 50
   whole:
     type: AdamW
     lr: 0.001
