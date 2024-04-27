@@ -63,7 +63,7 @@ for each_concept, each_image in zip(concept_list, image_list):
         print("Prompt:", each_prompt)
         for edit_strength in edit_strength_list:
             for i in range(5):
-                print(f"Edit strength {edit_strength}, Generating image {i}")
+                print(f"Concept {each_concept}, Prompt {each_index}, Edit strength {edit_strength}, Generating image {i}")
                 image_base = base(
                     prompt=[each_prompt],
                     negative_prompt=[''],
