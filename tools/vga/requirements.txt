@@ -1,5 +1,3 @@
-torch
 transformers
-diffuser
+diffusers
 openai
-
