@@ -7,8 +7,7 @@ pip install -r requirements.txt
 ```
 Remember to download the whole pretrained model folder (SDXL base abd SDXL refiner) from the following link:
 ```
-https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0
-https://huggingface.co/stabilityai/stable-diffusion-xl-refiner-1.0
+python3 tools/vga/download.py
 ```
 Some pieces of huggingface repo download codes for your reference:
 ```

@@ -6,7 +6,7 @@ import ast
 import os
 
 base = AutoPipelineForImage2Image.from_pretrained(
-    "/home/qiweidu/projects/LogiCity/diffusion_weights",  # this path should be "Your local dir" mentioned in readme.md
+    "./external/stable-diffusion-xl-base-1.0",  # this path should be "Your local dir" mentioned in readme.md
     torch_dtype=torch.float16, 
     variant="fp16", 
     use_safetensors=True,
@@ -14,7 +14,7 @@ base = AutoPipelineForImage2Image.from_pretrained(
 ).to("cuda")
 
 refiner = AutoPipelineForImage2Image.from_pretrained(
-    "/home/qiweidu/projects/LogiCity/diffusion_weights", # this path should be "Your local dir" mentioned in readme.md
+    "./external/stable-diffusion-xl-base-1.0", # this path should be "Your local dir" mentioned in readme.md
     text_encoder_2=base.text_encoder_2,
     vae=base.vae,
     torch_dtype=torch.float16,
@@ -32,8 +32,8 @@ edit_strength_list = [0.8, 0.84, 0.88, 0.92, 0.96, 1.0]
 
 ####################################################
 
-concept_file_path = "./llm_instruction/original_concept.txt"
-image_file_path = "./llm_instruction/original_file_name.txt"
+concept_file_path = "./tools/vga/llm_instruction/original_concept.txt"
+image_file_path = "./tools/vga/llm_instruction/original_file_name.txt"
 
 with open(concept_file_path, 'r') as file:
     content = file.read()
@@ -48,13 +48,13 @@ print("image_list: ", image_list)
 
 for each_concept, each_image in zip(concept_list, image_list):
 
-    image_addr = f"../../imgs/{each_image}.png"
+    image_addr = f"imgs/{each_image}.png"
     image_init = load_image(image_addr)
     image_init_height, image_init_width = image_init.size
     image_gen_height, image_gen_width = int(768 * image_init_height / image_init_width), 768
     image_init = image_init.resize((image_gen_height, image_gen_width))
 
-    description_path = f"./description/{each_image}.txt"
+    description_path = f"./tools/vga/description/{each_image}.txt"
     with open(description_path, 'r') as file:
         content = file.read()
         prompt_list = ast.literal_eval(content)
