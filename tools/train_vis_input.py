@@ -575,6 +575,7 @@ def train_bilevel(args):
 
 if __name__ == "__main__":
     args = get_parser()
+    os.environ['WANDB__SERVICE_WAIT'] = "300"
     os.environ['WANDB_API_KEY'] = 'f510977768bfee8889d74a65884aeec5f45a578f'
     if args.bilevel:
         train_bilevel(args)
