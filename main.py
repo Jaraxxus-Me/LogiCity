@@ -463,6 +463,9 @@ def create_vis_dataset(args, logger):
             icon_dict[key] = resized_img
 
     for stage, world_num in world_num_dict.items():
+        if os.path.exists(os.path.join(args.dataset_dir, stage)):
+            print("Dataset for {} already exists, skipping...".format(stage))
+            continue
         vis_dataset = {}
         if "fixed" in args.exp:
             simulation_config["agent_yaml_file"] = "config/agents/Vis/{}/{}.yaml".format(args.mode, stage)

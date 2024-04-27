@@ -1,0 +1,25 @@
+Data:
+  dataset_name: easy_200_fixed
+  data_path: vis_dataset/easy_200_fixed
+  mode: easy
+  batch_size: 1 #only supports 1
+  debug: False
+Model:
+  name: ResNetGNN
+  backbone: resnet50
+  ontology: config/rules/Vis/easy/ontology.yaml
+  bbox_channels: 9
+  BBOX_POS_MAX: 1024
+  node_predictor:
+    hidden: [512, 256, 256]
+  edge_predictor:
+    hidden: [256, 64]
+  gnn:
+    hidden: 128
+Optimizer:
+  epochs: 200
+  whole:
+    type: AdamW
+    lr: 0.001
+    weight_decay: 0.0001
+    scheduler: None

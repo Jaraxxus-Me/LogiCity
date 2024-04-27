@@ -167,6 +167,26 @@ class ResNetGNN(nn.Module):
         ) # A neural network that maps edge features edge_attr of shape [-1, num_edge_features] to shape [-1, in_channels * out_channels]
         self.reasoning_engine = NNConv(in_channels=self.node_channels, out_channels=self.action_channels, nn=self.edge_processor) # don't support batch operation
 
+    def read_ontology(self, ontology_file):
+
+        assert self.mode in ["easy", "medium", "hard", "expert"]
+        assert self.mode in ontology_file, "Ontology file does not contain mode: {}".format(self.mode)
+        with open(ontology_file, 'r') as file:
+            self.ontology_config = yaml.load(file, Loader=yaml.Loader)
+        self.node_concept_names = []
+        self.edge_concept_names = []
+        self.action_names = ["Slow", "Fast", "Normal", "Stop"]
+        for predicate in self.ontology_config["Predicates"]:
+            predicate_name = list(predicate.keys())[0]
+            if predicate[predicate_name]["arity"] == 1 and (predicate_name not in self.action_names): # "Is" assumtion is wrong, IsClose is binary
+                self.node_concept_names.append(predicate_name)
+            elif predicate[predicate_name]["arity"] == 2:
+                self.edge_concept_names.append(predicate_name)
+            else:
+                assert predicate_name in self.action_names, "Unknown predicate name: {}".format(predicate_name)
+            # additionally predict "Sees"
+        self.edge_concept_names.append("Sees")
+
     def forward(self, batch_imgs, batch_bboxes, batch_directions, batch_priorities):
         roi_features = self.perceptor(batch_imgs, batch_bboxes)
         next_actions, unary_concepts, binary_concepts = \
@@ -182,15 +202,17 @@ class ResNetGNN(nn.Module):
         N = roi_features.shape[1]
 
         # Predict node concepts
+        roi_features = roi_features.view(B*N, -1)
         node_concepts = self.node_concept_predictor(roi_features) # B x N x (concept_num x 256)
         # TODO: How to interpret the node_concepts?
         node_concepts_explicit = self.node_concept_interpreter(node_concepts)
+        node_concepts = node_concepts.view(B, N, -1)
 
         # Create scene graph (node:(concept, bbox, direction, priority))
         # 1. concat node attributes use for edge prediction (bbox, direction)
         node_attributes = torch.cat([batch_bboxes/self.BBOX_POS_MAX, batch_directions, batch_priorities.unsqueeze(-1)], dim=-1) # B x N x (4+4+1)
         # 2. predict edge attributes
-        node_attributes_paired = torch.zeros(B, N, N-1, 16).to(device)
+        node_attributes_paired = torch.zeros(B, N, N-1, 2*self.bbox_channels).to(device)
         upper_pairing_idxs = torch.triu_indices(N, N, offset=1).to(device)
         lower_pairing_idxs = torch.tril_indices(N, N, offset=-1).to(device)
         node_attributes_paired[:, upper_pairing_idxs[0], upper_pairing_idxs[1]-1] = torch.cat([
@@ -202,6 +224,8 @@ class ResNetGNN(nn.Module):
         node_attributes_paired = node_attributes_paired.view(B, (N*(N-1)), -1)
         edge_attributes = self.edge_predictor(node_attributes_paired) # B x (N x (N-1)) x C_edge
 
+        edge_attributes = edge_attributes.view(B, N, N-1, -1)
+
         return node_concepts, edge_attributes
 
     def reason(self, node_concepts, edge_attributes):
@@ -212,5 +236,8 @@ class ResNetGNN(nn.Module):
         i, j = torch.meshgrid(tmp_idx, tmp_idx, indexing='ij')
         tmp_mask = (i != j)
         edge_idxs = torch.stack((i[tmp_mask],j[tmp_mask]),dim=1).T.to(device) # 2 x (N x (N-1))
-        next_actions = self.reasoning_engine(node_concepts, edge_attributes, edge_idxs)
+
+        assert node_concepts.shape[0] == 1, "Batch operation not supported"
+        edge_attributes = edge_attributes.view(1, N*(N-1), -1)
+        next_actions = self.reasoning_engine(node_concepts[0], edge_idxs, edge_attributes[0])
         return next_actions
