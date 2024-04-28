@@ -17,7 +17,7 @@ Model:
   gnn:
     hidden: 128
 Optimizer:
-  epochs: 50
+  epochs: 30
   whole:
     type: AdamW
     lr: 0.0005

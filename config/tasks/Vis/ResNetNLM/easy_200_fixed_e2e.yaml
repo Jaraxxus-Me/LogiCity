@@ -25,7 +25,7 @@ Model:
     exclude_self: True
   nlm_arity: 1
 Optimizer:
-  epochs: 50
+  epochs: 30
   whole:
     type: AdamW
     lr: 0.001
