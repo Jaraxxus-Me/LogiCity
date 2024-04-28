@@ -5,7 +5,7 @@ from diffusers.utils import load_image, make_image_grid
 import ast
 
 base = AutoPipelineForImage2Image.from_pretrained(
-    ".external/stable-diffusion-xl-base-1.0", 
+    "external/local_dir/base", 
     torch_dtype=torch.float16, 
     variant="fp16", 
     use_safetensors=True,
@@ -13,7 +13,7 @@ base = AutoPipelineForImage2Image.from_pretrained(
 ).to("cuda")
 
 refiner = AutoPipelineForImage2Image.from_pretrained(
-    "/shared_data/p_vidalr/jinqiluo/model/diffuser/stable-diffusion-xl-refiner-1.0",
+    "external/local_dir/refiner",
     text_encoder_2=base.text_encoder_2,
     vae=base.vae,
     torch_dtype=torch.float16,
@@ -30,8 +30,8 @@ edit_strength = 0.75
 
 ####################################################
 
-concept_file_path = "./llm_instruction/original_concept.txt"
-image_file_path = "./llm_instruction/original_file_name.txt"
+concept_file_path = "tools/vga/llm_instruction/original_concept.txt"
+image_file_path = "tools/vga/llm_instruction/original_file_name.txt"
 
 with open(concept_file_path, 'r') as file:
     content = file.read()

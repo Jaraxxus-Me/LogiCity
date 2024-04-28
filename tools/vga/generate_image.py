@@ -6,7 +6,7 @@ import ast
 import os
 
 base = AutoPipelineForImage2Image.from_pretrained(
-    "./external/stable-diffusion-xl-base-1.0",  # this path should be "Your local dir" mentioned in readme.md
+    "external/local_dir/base", 
     torch_dtype=torch.float16, 
     variant="fp16", 
     use_safetensors=True,
@@ -14,7 +14,7 @@ base = AutoPipelineForImage2Image.from_pretrained(
 ).to("cuda")
 
 refiner = AutoPipelineForImage2Image.from_pretrained(
-    "./external/stable-diffusion-xl-base-1.0", # this path should be "Your local dir" mentioned in readme.md
+    "external/local_dir/refiner",
     text_encoder_2=base.text_encoder_2,
     vae=base.vae,
     torch_dtype=torch.float16,
@@ -28,7 +28,7 @@ register_free_crossattn_upblock2d(base, b1=1.1, b2=1.2, s1=0.6, s2=0.4)
 # base.enable_sequential_cpu_offload()
 
 num_of_denoising_steps = 100
-edit_strength_list = [0.8, 0.84, 0.88, 0.92, 0.96, 1.0]
+edit_strength_list = [0.78, 0.8, 0.84, 0.88, 0.92, 0.96, 0.98]
 
 ####################################################
 
@@ -37,11 +37,11 @@ image_file_path = "./tools/vga/llm_instruction/original_file_name.txt"
 
 with open(concept_file_path, 'r') as file:
     content = file.read()
-    concept_list = ast.literal_eval(content)[3:5] # [Ambulance car, Police car]
+    concept_list = ast.literal_eval(content)[4:8] # [Car, Bus, Pick up, Race]
 
 with open(image_file_path, 'r') as file:
     content = file.read()
-    image_list = ast.literal_eval(content)[3:5] # [car_ambulance, car_police]
+    image_list = ast.literal_eval(content)[4:8] # [Car, Bus, Pick up, Race]
 
 print("concept_list: ", concept_list)
 print("image_list: ", image_list)
@@ -62,7 +62,7 @@ for each_concept, each_image in zip(concept_list, image_list):
     for each_index, each_prompt in enumerate(prompt_list):
         print("Prompt:", each_prompt)
         for edit_strength in edit_strength_list:
-            for i in range(5):
+            for i in range(6):
                 print(f"Concept {each_concept}, Prompt {each_index}, Edit strength {edit_strength}, Generating image {i}")
                 image_base = base(
                     prompt=[each_prompt],
