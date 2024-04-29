@@ -97,23 +97,74 @@ PATH_DICT = {
 }
 
 ICON_DIR_PATH_DICT = {
-    "Car": os.path.join(IMAGE_BASE_PATH, "car_normal"),
-    "Ambulance": os.path.join(IMAGE_BASE_PATH, "car_ambulance"),
-    "Bus": os.path.join(IMAGE_BASE_PATH, "car_bus"),
-    "Tiro": os.path.join(IMAGE_BASE_PATH, "car_tiro"),
-    "Police": os.path.join(IMAGE_BASE_PATH, "car_police"),
-    "Reckless": os.path.join(IMAGE_BASE_PATH, "car_reckless"),
-    "Pedestrian": os.path.join(IMAGE_BASE_PATH, "pedestrian_normal"),
-    "Pedestrian_old": os.path.join(IMAGE_BASE_PATH, "pedestrian_old"),
-    "Pedestrian_young": os.path.join(IMAGE_BASE_PATH, "pedestrian_young"),
-    "Walking Street": os.path.join(IMAGE_BASE_PATH, "walking"),
-    "Traffic Street": os.path.join(IMAGE_BASE_PATH, "traffic"),
-    "Overlap": os.path.join(IMAGE_BASE_PATH, "crossing"),
-    "Gas Station": os.path.join(IMAGE_BASE_PATH, "gas"),
-    "Garage": os.path.join(IMAGE_BASE_PATH, "garage"),
-    "House": os.path.join(IMAGE_BASE_PATH, "house"),
-    "Office": os.path.join(IMAGE_BASE_PATH, "office"),
-    "Store": os.path.join(IMAGE_BASE_PATH, "store"),
+    "Car": {
+        "train": os.path.join(IMAGE_BASE_PATH, "train", "car_normal"),
+        "test": os.path.join(IMAGE_BASE_PATH, "test", "car_normal"),
+    },
+    "Ambulance": {
+        "train": os.path.join(IMAGE_BASE_PATH, "train", "car_ambulance"),
+        "test": os.path.join(IMAGE_BASE_PATH, "test", "car_ambulance"),
+    },
+    "Bus": {
+        "train": os.path.join(IMAGE_BASE_PATH, "train", "car_bus"),
+        "test": os.path.join(IMAGE_BASE_PATH, "test", "car_bus"),
+    },
+    "Tiro": {
+        "train": os.path.join(IMAGE_BASE_PATH, "train", "car_tiro"),
+        "test": os.path.join(IMAGE_BASE_PATH, "test", "car_tiro"),
+    },
+    "Police": {
+        "train": os.path.join(IMAGE_BASE_PATH, "train", "car_police"),
+        "test": os.path.join(IMAGE_BASE_PATH, "test", "car_police"),
+    },
+    "Reckless": {
+        "train": os.path.join(IMAGE_BASE_PATH, "train", "car_reckless"),
+        "test": os.path.join(IMAGE_BASE_PATH, "test", "car_reckless"),
+    },
+    "Pedestrian": {
+        "train": os.path.join(IMAGE_BASE_PATH, "train", "pedestrian_normal"),
+        "test": os.path.join(IMAGE_BASE_PATH, "test", "pedestrian_normal"),
+    },
+    "Pedestrian_old": {
+        "train": os.path.join(IMAGE_BASE_PATH, "train", "pedestrian_old"),
+        "test": os.path.join(IMAGE_BASE_PATH, "test", "pedestrian_old"),
+    },
+    "Pedestrian_young": {
+        "train": os.path.join(IMAGE_BASE_PATH, "train", "pedestrian_young"),
+        "test": os.path.join(IMAGE_BASE_PATH, "test", "pedestrian_young"),
+    },
+    "Walking Street": {
+        "train": os.path.join(IMAGE_BASE_PATH, "train", "walking"),
+        "test": os.path.join(IMAGE_BASE_PATH, "test", "walking"),
+    },
+    "Traffic Street": {
+        "train": os.path.join(IMAGE_BASE_PATH, "train", "traffic"),
+        "test": os.path.join(IMAGE_BASE_PATH, "test", "traffic"),
+    },
+    "Overlap": {
+        "train": os.path.join(IMAGE_BASE_PATH, "train", "crossing"),
+        "test": os.path.join(IMAGE_BASE_PATH, "test", "crossing"),
+    },
+    "Gas Station": {
+        "train": os.path.join(IMAGE_BASE_PATH, "train", "gas"),
+        "test": os.path.join(IMAGE_BASE_PATH, "test", "gas"),
+    },
+    "Garage": {
+        "train": os.path.join(IMAGE_BASE_PATH, "train", "garage"),
+        "test": os.path.join(IMAGE_BASE_PATH, "test", "garage"),
+    },
+    "House": {
+        "train": os.path.join(IMAGE_BASE_PATH, "train", "house"),
+        "test": os.path.join(IMAGE_BASE_PATH, "test", "house"),
+    },
+    "Office": {
+        "train": os.path.join(IMAGE_BASE_PATH, "train", "office"),
+        "test": os.path.join(IMAGE_BASE_PATH, "test", "office"),
+    },
+    "Store": {
+        "train": os.path.join(IMAGE_BASE_PATH, "train", "store"),
+        "test": os.path.join(IMAGE_BASE_PATH, "test", "store"),
+    },
 }
 
 SCALE = 8

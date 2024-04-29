@@ -450,17 +450,23 @@ def create_vis_dataset(args, logger):
         if predicate_name in STATIC_UNARY_PREDICATE_NAME_DICT:
             valid_concept_names.append(predicate_name)
 
-    # prepare icon img dir dict
-    icon_dir_dict = {}
-    for key in ICON_DIR_PATH_DICT.keys():
-        icon_dir_path = ICON_DIR_PATH_DICT[key]
-        icon_num = len(os.listdir(icon_dir_path))
-        icon_dir_dict[key] = {"icon_dir_path": icon_dir_path, "icon_num": icon_num}
+
 
     for stage, world_num in world_num_dict.items():
         if os.path.exists(os.path.join(args.dataset_dir, stage)):
             print("Dataset for {} already exists, skipping...".format(stage))
             continue
+
+        # prepare icon img dir dict
+        icon_dir_dict = {}
+        for key in ICON_DIR_PATH_DICT.keys():
+            if stage == "test":
+                icon_dir_path = ICON_DIR_PATH_DICT[key]["test"]
+            else:
+                icon_dir_path = ICON_DIR_PATH_DICT[key]["train"]
+            icon_num = len(os.listdir(icon_dir_path))
+            icon_dir_dict[key] = {"icon_dir_path": icon_dir_path, "icon_num": icon_num}
+
         vis_dataset = {}
         if "fixed" in args.exp:
             simulation_config["agent_yaml_file"] = "config/agents/Vis/{}/{}.yaml".format(args.mode, stage)
