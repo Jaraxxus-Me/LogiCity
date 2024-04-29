@@ -96,6 +96,26 @@ PATH_DICT = {
     "Store": [os.path.join(IMAGE_BASE_PATH, "store{}.png").format(i) for i in range(1, 4)],
 }
 
+ICON_DIR_PATH_DICT = {
+    "Car": os.path.join(IMAGE_BASE_PATH, "car_normal"),
+    "Ambulance": os.path.join(IMAGE_BASE_PATH, "car_ambulance"),
+    "Bus": os.path.join(IMAGE_BASE_PATH, "car_bus"),
+    "Tiro": os.path.join(IMAGE_BASE_PATH, "car_tiro"),
+    "Police": os.path.join(IMAGE_BASE_PATH, "car_police"),
+    "Reckless": os.path.join(IMAGE_BASE_PATH, "car_reckless"),
+    "Pedestrian": os.path.join(IMAGE_BASE_PATH, "pedestrian_normal"),
+    "Pedestrian_old": os.path.join(IMAGE_BASE_PATH, "pedestrian_old"),
+    "Pedestrian_young": os.path.join(IMAGE_BASE_PATH, "pedestrian_young"),
+    "Walking Street": os.path.join(IMAGE_BASE_PATH, "walking"),
+    "Traffic Street": os.path.join(IMAGE_BASE_PATH, "traffic"),
+    "Overlap": os.path.join(IMAGE_BASE_PATH, "crossing"),
+    "Gas Station": os.path.join(IMAGE_BASE_PATH, "gas"),
+    "Garage": os.path.join(IMAGE_BASE_PATH, "garage"),
+    "House": os.path.join(IMAGE_BASE_PATH, "house"),
+    "Office": os.path.join(IMAGE_BASE_PATH, "office"),
+    "Store": os.path.join(IMAGE_BASE_PATH, "store"),
+}
+
 SCALE = 8
 
 ICON_SIZE_DICT = {
@@ -613,7 +633,7 @@ def gridmap2img_agents(gridmap, gridmap_, icon_dict, static_map, last_icons=None
     else:
         return current_map, icon_dict_local
 
-def pkl2city_imgs(data, icon_dict, output_folder, ego_id=-1, crop=[0, 1024, 0, 1024]):
+def pkl2city_imgs(data, icon_dir_dict, output_folder, ego_id=-1, crop=[0, 1024, 0, 1024]):
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
@@ -623,6 +643,9 @@ def pkl2city_imgs(data, icon_dict, output_folder, ego_id=-1, crop=[0, 1024, 0, 1
     print(obs.keys())
     time_steps = list(obs.keys())
     time_steps.sort()
+
+    icon_dict = get_random_icon_dict(icon_dir_dict) # sample icon from icon lib
+
     static_map = gridmap2img_static(obs[time_steps[0]]["World"].numpy(), icon_dict, ego_id)
     static_map_img = Image.fromarray(static_map)
     static_map_img.save("{}/static_layout.png".format(output_folder))
@@ -630,6 +653,7 @@ def pkl2city_imgs(data, icon_dict, output_folder, ego_id=-1, crop=[0, 1024, 0, 1
     for key in trange(time_steps[0], time_steps[-1]):
         grid = obs[key]["World"].numpy()
         grid_ = obs[key+1]["World"].numpy()
+        icon_dict = get_random_icon_dict(icon_dir_dict) # sample icon from icon lib
         img, last_icons = gridmap2img_agents(grid, grid_, icon_dict, static_map, last_icons, agents)
         xmin, xmax, ymin, ymax = crop
         img = img.crop((xmin, ymin, xmax, ymax))
@@ -661,3 +685,29 @@ def pkl2city_imgs(data, icon_dict, output_folder, ego_id=-1, crop=[0, 1024, 0, 1
 
     return
 
+def get_random_icon_dict(icon_dir_dict):
+    icon_dict = {}
+    for key in icon_dir_dict.keys():
+        icon_dir_path = icon_dir_dict[key]["icon_dir_path"]
+        icon_num = icon_dir_dict[key]["icon_num"]
+        if key in ["House", "Office", "Store"]:
+            icon_path_list = []
+            for _ in range(3):
+                icon_idx = np.random.choice(icon_num)
+                # option 1 (faster, for imgs with formulated names)
+                # icon_path_list.append(os.path.join(icon_dir_path, "image_{}.png".format(icon_idx)))
+                # option 2 (slower, for imgs with random names)
+                icon_path_list.append(os.listdir(icon_dir_path)[icon_idx])
+            raw_img = [cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2RGB) for path in icon_path_list]
+            resized_img = [resize_with_aspect_ratio(img, ICON_SIZE_DICT[key]) for img in raw_img]
+            icon_dict[key] = resized_img
+        else:
+            icon_idx = np.random.choice(icon_num)
+            # option 1 (faster, for imgs with formulated names)
+            # icon_path = os.path.join(icon_dir_path, "image_{}.png".format(icon_idx))
+            # option 2 (slower, for imgs with random names)
+            icon_path = os.listdir(icon_dir_path)[icon_idx]
+            raw_img = cv2.cvtColor(cv2.imread(icon_path), cv2.COLOR_BGR2RGB)
+            resized_img = resize_with_aspect_ratio(raw_img, ICON_SIZE_DICT[key])
+            icon_dict[key] = resized_img
+    return icon_dict
