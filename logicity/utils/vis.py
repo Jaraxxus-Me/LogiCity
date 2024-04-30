@@ -575,13 +575,14 @@ def paste_car_on_map(map_image, car_image, position, direction, type, position_l
             center_position = ((l+r)//2, (t+b)//2)
             new_position = (center_position[0] - rotated_car.width//2, center_position[1] - rotated_car.height//2)
     
-
+    icon_bbox_right = new_position[0] + rotated_car.width
+    icon_bbox_bottom = new_position[1] + rotated_car.height
     # Paste the car image onto the map
     map_image.paste(rotated_car, new_position, mask)
 
-    return rotated_car, map_image, list(new_position)
+    return rotated_car, map_image, list(new_position), (new_position[0], new_position[1], icon_bbox_right, icon_bbox_bottom)
 
-def gridmap2img_agents(gridmap, gridmap_, icon_dict, static_map, last_icons=None, agents=None):
+def gridmap2img_agents(vis_dataset, agent_next_actions, step_name, gridmap, gridmap_, icon_dict, static_map, last_icons=None, agents=None):
     current_map = static_map.copy()
     current_map = Image.fromarray(current_map)
     agent_layer = gridmap[BASIC_LAYER:]
@@ -604,7 +605,21 @@ def gridmap2img_agents(gridmap, gridmap_, icon_dict, static_map, last_icons=None
         agent_type = LABEL_MAP[local_layer[top, left].item()]     
         agent_name = "{}_{}".format(agent_type, BASIC_LAYER + i)
         if agents != None:
+            vis_dataset[step_name]["Types"][i] = agent_type
             concepts = agents[agent_name]["concepts"]
+            vis_dataset[step_name]["Priorities"][i] = concepts["priority"]
+            # Get detailed type of agent
+            agent_detailed_type = list(set(list(DETAILED_TYPE_MAP.keys())) \
+                                    & set(list(concepts.keys())))
+            if not agent_detailed_type:
+                if agent_type == "Car":
+                    agent_detailed_type = "normal_car"
+                else:
+                    agent_detailed_type = "normal_pedestrian"
+            else:
+                agent_detailed_type = agent_detailed_type[0]
+            vis_dataset[step_name]["Detailed_types"][i] = agent_detailed_type
+            vis_dataset[step_name]["Directions"][i] = direction
             is_ambulance = False
             is_police = False
             is_young = False
@@ -666,30 +681,33 @@ def gridmap2img_agents(gridmap, gridmap_, icon_dict, static_map, last_icons=None
             if direction == "none":
                 icon = last_icons["icon"]["{}_{}".format(agent_type, i)][1]
                 position = last_icons["pos"]["{}_{}".format(agent_type, i)]
-                icon, current_map, last_position = paste_car_on_map(current_map, icon, pos, direction, agent_type, position_last=position, street_type=street_type)
+                icon, current_map, last_position, bbox = paste_car_on_map(current_map, icon, pos, direction, agent_type, position_last=position, street_type=street_type)
             else:
                 icon = last_icons["icon"]["{}_{}".format(agent_type, i)][0]
-                icon, current_map, last_position = paste_car_on_map(current_map, icon, pos, direction, agent_type, street_type=street_type)
+                icon, current_map, last_position, bbox = paste_car_on_map(current_map, icon, pos, direction, agent_type, street_type=street_type)
             last_icons["icon"]["{}_{}".format(agent_type, i)][1] = icon
             last_icons["pos"]["{}_{}".format(agent_type, i)] = last_position
         else:
             icon_img = Image.fromarray(icon) 
             icon_dict_local["icon"]["{}_{}".format(agent_type, i)] = [icon_img]
-            current_icon, current_map, last_position = paste_car_on_map(current_map, icon_img, pos, direction, agent_type, street_type=street_type)
+            current_icon, current_map, last_position, bbox = paste_car_on_map(current_map, icon_img, pos, direction, agent_type, street_type=street_type)
             icon_dict_local["icon"]["{}_{}".format(agent_type, i)].append(current_icon)
             icon_dict_local["pos"]["{}_{}".format(agent_type, i)] = last_position
 
-    if last_icons is not None:
-        return current_map, last_icons
-    else:
-        return current_map, icon_dict_local
+        vis_dataset[step_name]["Bboxes"][i] = bbox
+        vis_dataset[step_name]["Next_actions"][i] = agent_next_actions[i]
 
-def pkl2city_imgs(data, icon_dir_dict, output_folder, ego_id=-1, crop=[0, 1024, 0, 1024]):
+    if last_icons is not None:
+        return current_map, last_icons, vis_dataset
+    else:
+        return current_map, icon_dict_local, vis_dataset
+
+def pkl2city_imgs(cached_observation, vis_dataset, world_idx, icon_dir_dict, output_folder, ego_id=-1, crop=[0, 1024, 0, 1024]):
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
-    obs = data["Time_Obs"]
-    agents = data["Static Info"]["Agents"]
+    obs = cached_observation["Time_Obs"]
+    agents = cached_observation["Static Info"]["Agents"]
 
     print(obs.keys())
     time_steps = list(obs.keys())
@@ -702,10 +720,20 @@ def pkl2city_imgs(data, icon_dir_dict, output_folder, ego_id=-1, crop=[0, 1024, 
     static_map_img.save("{}/static_layout.png".format(output_folder))
     last_icons = None
     for key in trange(time_steps[0], time_steps[-1]):
+        step_name = "World{}_step{:0>4d}".format(world_idx, key)
+        vis_dataset[step_name] = {}
+        vis_dataset[step_name]["Image_path"] = os.path.join(output_folder ,"step_{:0>4d}.png".format(key))
+        vis_dataset[step_name]["Predicate_groundings"] = obs[key]["Predicate_groundings"]
+        vis_dataset[step_name]["Bboxes"] = {}
+        vis_dataset[step_name]["Types"] = {}
+        vis_dataset[step_name]["Detailed_types"] = {}
+        vis_dataset[step_name]["Priorities"] = {}
+        vis_dataset[step_name]["Directions"] = {}
+        vis_dataset[step_name]["Next_actions"] = {}
         grid = obs[key]["World"].numpy()
         grid_ = obs[key+1]["World"].numpy()
         icon_dict = get_random_icon_dict(icon_dir_dict) # sample icon from icon lib
-        img, last_icons = gridmap2img_agents(grid, grid_, icon_dict, static_map, last_icons, agents)
+        img, last_icons, vis_dataset = gridmap2img_agents(vis_dataset, list(obs[key]["Agent_actions"].values()), step_name, grid, grid_, icon_dict, static_map, last_icons, agents)
         xmin, xmax, ymin, ymax = crop
         img = img.crop((xmin, ymin, xmax, ymax))
         # Define the text to be added
@@ -734,7 +762,7 @@ def pkl2city_imgs(data, icon_dir_dict, output_folder, ego_id=-1, crop=[0, 1024, 
         img.save(output_path)
     # cv2.destroyAllWindows()
 
-    return
+    return vis_dataset
 
 def get_random_icon_dict(icon_dir_dict):
     icon_dict = {}
@@ -748,7 +776,7 @@ def get_random_icon_dict(icon_dir_dict):
                 # option 1 (faster, for imgs with formulated names)
                 # icon_path_list.append(os.path.join(icon_dir_path, "image_{}.png".format(icon_idx)))
                 # option 2 (slower, for imgs with random names)
-                icon_path_list.append(os.listdir(icon_dir_path)[icon_idx])
+                icon_path_list.append(os.path.join(icon_dir_path, os.listdir(icon_dir_path)[icon_idx]))
             raw_img = [cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2RGB) for path in icon_path_list]
             resized_img = [resize_with_aspect_ratio(img, ICON_SIZE_DICT[key]) for img in raw_img]
             icon_dict[key] = resized_img
@@ -757,7 +785,7 @@ def get_random_icon_dict(icon_dir_dict):
             # option 1 (faster, for imgs with formulated names)
             # icon_path = os.path.join(icon_dir_path, "image_{}.png".format(icon_idx))
             # option 2 (slower, for imgs with random names)
-            icon_path = os.listdir(icon_dir_path)[icon_idx]
+            icon_path = os.path.join(icon_dir_path, os.listdir(icon_dir_path)[icon_idx])
             raw_img = cv2.cvtColor(cv2.imread(icon_path), cv2.COLOR_BGR2RGB)
             resized_img = resize_with_aspect_ratio(raw_img, ICON_SIZE_DICT[key])
             icon_dict[key] = resized_img
