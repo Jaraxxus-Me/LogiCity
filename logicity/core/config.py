@@ -67,9 +67,18 @@ CAR_GOAL_START = ["Gas Station", "Garage", "Store"]
 CAR_GOAL_START_INCLUDE_KERNEL = (WALKING_STREET_WID+4)*2+1
 CAR_GOAL_START_EXCLUDE_KERNEL = WALKING_STREET_WID + TRAFFIC_STREET_WID//2 + 1
 CAR_SIZE = 3 # kernel to enlarge car occupency
+OCC_CHECK_RANGE_CAR = 11
+OCC_CHECK_RANGE_PEDESTRIAN = 4
 OCC_CHECK_RANGE = {
-    "Pedestrian": 3,
-    "Car": 8
+    "tiro": OCC_CHECK_RANGE_CAR,
+    "bus": OCC_CHECK_RANGE_CAR,
+    "ambulance": OCC_CHECK_RANGE_CAR,
+    "police": OCC_CHECK_RANGE_CAR,
+    "reckless": OCC_CHECK_RANGE_CAR,
+    "normal_car": OCC_CHECK_RANGE_CAR,
+    "old": OCC_CHECK_RANGE_PEDESTRIAN,
+    "young": OCC_CHECK_RANGE_PEDESTRIAN,
+    "normal_pedestrian": OCC_CHECK_RANGE_PEDESTRIAN,
 }
 OCC_CHECK_ANGEL = 0.1
 DIRECTION_VECTOR = {
@@ -99,4 +108,14 @@ ACTION2NAME = {
     2: "Up",
     3: "Down",
     4: "Stop"
+}
+
+DETAILED_TYPE_MAP = {
+    "tiro": "Tiro", 
+    "bus": "Bus", 
+    "ambulance": "Ambulance", 
+    "old": "Pedestrian_old", 
+    "young": "Pedestrian_young", 
+    "police": "Police", 
+    "reckless": "Reckless"
 }

@@ -5,20 +5,17 @@ Rules:
           [dummyEntityA], 
           Or(
             And(
-              Not(IsAmbulance(entity)), 
               Not(IsOld(entity)),
               IsAtInter(entity), 
               IsInInter(dummyEntityA), 
             ),
             And(
-              Not(IsAmbulance(entity)), 
               Not(IsOld(entity)),
               IsAtInter(entity), 
               IsAtInter(dummyEntityA), 
               HigherPri(dummyEntityA, entity),
             ),
             And(
-              Not(IsAmbulance(entity)), 
               Not(IsOld(entity)),
               CollidingClose(entity, dummyEntityA)
             )

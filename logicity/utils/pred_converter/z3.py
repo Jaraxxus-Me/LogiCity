@@ -250,11 +250,26 @@ def CollidingClose(world_matrix, intersect_matrix, agents, entity1, entity2):
     else:
         assert "ego_{}".format(layer_id1) in agents.keys()
         agent1_dire = agents["ego_{}".format(layer_id1)].moving_direction
+    # 3. Get the concept (detailed type) of the ego agent
+    if layer_id1 in agents.keys():
+        agent1_concepts = agents[layer_id1].concepts
+    else:
+        assert "ego_{}".format(layer_id1) in agents.keys()
+        agent1_concepts = agents["ego_{}".format(layer_id1)].concepts
+    agent1_detailed_type = list(set(list(DETAILED_TYPE_MAP.keys())) & set(list(agent1_concepts.keys())))
+    if not agent1_detailed_type:
+        if agent_type1 == "Car":
+            agent1_detailed_type = "normal_car"
+        else:
+            agent1_detailed_type = "normal_pedestrian"
+    else:
+        agent1_detailed_type = agent1_detailed_type[0]
+    
     if agent1_dire == None:
         return 0
     else:
         dist = torch.sqrt(torch.sum((agent_position1 - agent_position2)**2))
-        if dist > OCC_CHECK_RANGE[agent_type1]:
+        if dist > OCC_CHECK_RANGE[agent1_detailed_type]:
             return 0
         elif dist == 0:
             return np.random.choice([0, 1], p=[0.5, 0.5])
