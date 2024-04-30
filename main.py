@@ -31,7 +31,7 @@ def parse_arguments():
     parser.add_argument('--collect_only', action='store_true', help='Only collect expert data.')
     parser.add_argument('--use_gym', action='store_true', help='In gym mode, we can use RL alg. to control certain agents.')
     parser.add_argument('--save_steps', action='store_true', help='Save step-wise decision for each trajectory.')
-    parser.add_argument('--config', default='config/tasks/sim/easy.yaml', help='Configure file for this RL exp.')
+    parser.add_argument('--config', default=None, help='Configure file for this RL exp.')
     parser.add_argument('--checkpoint_path', default=None, help='Path to the trained model.')
     # vis_dataset
     parser.add_argument('--create_vis_dataset', action='store_true', help='Create vis dataset from scratch.')
@@ -436,12 +436,14 @@ def create_vis_dataset(args, logger):
         "val": args.val_world_num,
         "test": args.test_world_num,
     }
+    print(args.config)
     config = load_config(args.config)
     tmp_agent_yaml_file = "{}/tmp_agents.yaml".format(args.dataset_dir)
     simulation_config = config["simulation"]
+    print(simulation_config)
 
     # prepare agent concepts to choose from
-    ontology_yaml_file = config["simulation"]["ontology_yaml_file"]
+    ontology_yaml_file = simulation_config["ontology_yaml_file"]
     with open(ontology_yaml_file, 'r') as file:
         ontology_config = yaml.load(file, Loader=yaml.Loader)
     valid_concept_names = []

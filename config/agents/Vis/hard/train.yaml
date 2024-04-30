@@ -1,0 +1,107 @@
+# class defines the "python class" for the agent, affecting global planning, concepts define local decision rules
+agents:
+- class: Private_car
+  id: 1
+  size: 1
+  gplanner: A*vg
+  concepts:
+    type: Car
+    priority: 1
+    ambulance: 1.0
+    
+- class: Pedestrian
+  id: 1
+  size: 1
+  gplanner: A*
+  concepts:
+    type: Pedestrian
+    priority: 0
+    young: 1.0
+
+- class: Pedestrian
+  id: 2
+  size: 1
+  gplanner: A*
+  concepts:
+    type: Pedestrian
+    priority: 0
+    young: 1.0
+
+- class: Pedestrian
+  id: 3
+  size: 1
+  gplanner: A*
+  concepts:
+    type: Pedestrian
+    priority: 0
+    old: 1.0
+
+- class: Pedestrian
+  id: 4
+  size: 1
+  gplanner: A*
+  concepts:
+    type: Pedestrian
+    priority: 0
+
+- class: Pedestrian
+  id: 5
+  size: 1
+  gplanner: A*
+  concepts:
+    type: Pedestrian
+    priority: 0
+    old: 1.0
+
+- class: Private_car
+  id: 2
+  size: 1
+  gplanner: A*vg
+  concepts:
+    type: Car
+    priority: 2
+    bus: 1.0
+
+- class: Private_car
+  id: 3
+  size: 1
+  gplanner: A*vg
+  concepts:
+    type: Car
+    priority: 3
+
+- class: Private_car
+  id: 4
+  size: 1
+  gplanner: A*vg
+  concepts:
+    type: Car
+    reckless: 1.0
+    priority: 4
+
+- class: Private_car
+  id: 5
+  size: 1
+  gplanner: A*vg
+  concepts:
+    type: Car
+    tiro: 1.0
+    priority: 5
+
+- class: Private_car
+  id: 6
+  size: 1
+  gplanner: A*vg
+  concepts:
+    type: Car
+    police: 1.0
+    priority: 6
+
+- class: Private_car
+  id: 7
+  size: 1
+  gplanner: A*vg
+  concepts:
+    type: Car
+    priority: 1
+    ambulance: 1.0

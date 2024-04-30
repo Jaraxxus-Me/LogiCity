@@ -12,7 +12,7 @@ def create_gif(image_folder, output_file):
     with Image.open(image_files[0]) as im:
         # Save the first image as the animated GIF
         im.save(output_file, save_all=True,
-                append_images=[Image.open(os.path.join(image_folder, f"step_{k}.png")) for k in range(1, n_images - 1)],
+                append_images=[Image.open(os.path.join(image_folder, "step_{:04}.png".format(k))) for k in range(1, n_images - 1)],
                 duration=200, loop=0)
 
 if __name__ == "__main__":

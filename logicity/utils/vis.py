@@ -730,8 +730,7 @@ def pkl2city_imgs(cached_observation, vis_dataset, world_idx, icon_dir_dict, out
     icon_dict = get_random_icon_dict(icon_dir_dict) # sample icon from icon lib
 
     static_map = gridmap2img_static(obs[time_steps[0]]["World"].numpy(), icon_dict, ego_id)
-    static_map_img = Image.fromarray(static_map)
-    static_map_img.save("{}/static_layout.png".format(output_folder))
+    # static_map_img.save("{}/static_layout.png".format(output_folder))
     last_icons = None
     for key in trange(time_steps[0], time_steps[-1]):
         step_name = "World{}_step{:0>4d}".format(world_idx, key)
@@ -750,27 +749,6 @@ def pkl2city_imgs(cached_observation, vis_dataset, world_idx, icon_dir_dict, out
         img, last_icons, vis_dataset = gridmap2img_agents(vis_dataset, list(obs[key]["Agent_actions"].values()), step_name, grid, grid_, icon_dict, static_map, last_icons, agents)
         xmin, xmax, ymin, ymax = crop
         img = img.crop((xmin, ymin, xmax, ymax))
-        # Define the text to be added
-        text = "#{}".format(key)
-
-        # Specify the position for the text (x, y coordinates)
-        position = (10, 10)  # 10 pixels from the left and 30 from the top
-
-        # Create an ImageDraw object
-        draw = ImageDraw.Draw(img)
-
-        # Define font type and size (you might need to provide the path to a .ttf font file)
-        try:
-            font = ImageFont.truetype("arial.ttf", size=100)  # Example font, adjust the path and size as needed
-        except IOError:
-            font = ImageFont.load_default()
-
-        # Define text color
-        color = (255, 255, 255)  # White color
-
-        # Add text to image
-        draw.text(position, text, fill=color, font=font)
-
         # Save the image
         output_path = "{}/step_{:0>4d}.png".format(output_folder, key)
         img.save(output_path)

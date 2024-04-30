@@ -5,20 +5,15 @@ Rules:
           [dummyEntityA], 
           Or(
             And(
-              Not(IsOld(entity)),
               IsAtInter(entity), 
               IsInInter(dummyEntityA), 
             ),
             And(
-              Not(IsOld(entity)),
               IsAtInter(entity), 
               IsAtInter(dummyEntityA), 
               HigherPri(dummyEntityA, entity),
             ),
-            And(
-              Not(IsOld(entity)),
-              CollidingClose(entity, dummyEntityA)
-            )
+            CollidingClose(entity, dummyEntityA)
           )
         )
       description: Medium stop rule.
