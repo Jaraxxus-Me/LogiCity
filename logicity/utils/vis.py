@@ -492,7 +492,7 @@ def create_custom_mask(image, threshold=0.1):
                     mask_pixels[i, j] = 255
         return mask
 
-def paste_car_on_map(map_image, car_image, position, direction, type, position_last=None, street_type=None):
+def paste_car_on_map(map_image, car_image, position, direction, direction_last, type, position_last=None, street_type=None):
     """ Paste car on the map with the correct orientation and position """
     l, t, r, b = position
     if type == "Car":
@@ -512,10 +512,23 @@ def paste_car_on_map(map_image, car_image, position, direction, type, position_l
             'left': -1,
             'none': 0
         }
-
-
+    is_crooked_car = False
     # Rotate the car image based on the direction
-    rotated_car = rotate_image(car_image, rotation_angles[direction])
+    if type == "Pedestrian" or direction == direction_last or direction == "none" or direction_last == "none":
+        rotated_car = rotate_image(car_image, rotation_angles[direction])
+    else:
+        is_crooked_car = True
+        bbox_len = int((car_image.width + car_image.height) / np.sqrt(2))
+        if (direction == "up" and direction_last == "left") or (direction == "left" and direction_last == "up"):
+            rotated_car = rotate_image(car_image, 45)
+        elif (direction == "down" and direction_last == "left") or (direction == "left" and direction_last == "down"):
+            rotated_car = rotate_image(car_image, 135)
+        elif (direction == "down" and direction_last == "right") or (direction == "right" and direction_last == "down"):
+            rotated_car = rotate_image(car_image, 225)
+        elif (direction == "up" and direction_last == "right") or (direction == "right" and direction_last == "up"):
+            rotated_car = rotate_image(car_image, 315)
+        else: # this situation should not happen
+            rotated_car = rotate_image(car_image, rotation_angles[direction])
 
     mask = create_custom_mask(rotated_car)
 
@@ -555,6 +568,8 @@ def paste_car_on_map(map_image, car_image, position, direction, type, position_l
                 new_position = tuple(position_last)
             else:
                 new_position = (l, t)
+        if is_crooked_car:
+            new_position = (head_position[0] - bbox_len//2, head_position[1] - bbox_len//2)
     elif type == "Pedestrian":
         if direction == "none":
             if position_last is not None:
@@ -564,9 +579,12 @@ def paste_car_on_map(map_image, car_image, position, direction, type, position_l
         else:
             center_position = ((l+r)//2, (t+b)//2)
             new_position = (center_position[0] - rotated_car.width//2, center_position[1] - rotated_car.height//2)
-    
-    icon_bbox_right = new_position[0] + rotated_car.width
-    icon_bbox_bottom = new_position[1] + rotated_car.height
+    if is_crooked_car:
+        icon_bbox_right = new_position[0] + bbox_len
+        icon_bbox_bottom = new_position[1] + bbox_len
+    else:
+        icon_bbox_right = new_position[0] + rotated_car.width
+        icon_bbox_bottom = new_position[1] + rotated_car.height
     # Paste the car image onto the map
     map_image.paste(rotated_car, new_position, mask)
 
@@ -583,6 +601,8 @@ def gridmap2img_agents(vis_dataset, agent_next_actions, step_name, gridmap, grid
         "icon": {},
         "pos": {}
     }
+    cur_step = int(step_name.split("_")[1][4:])
+    last_step_name = "{}{:0>4d}".format(step_name[:-4], cur_step-1)
 
     for i in range(resized_grid.shape[0]):
         local_layer = resized_grid[i]
@@ -590,6 +610,10 @@ def gridmap2img_agents(vis_dataset, agent_next_actions, step_name, gridmap, grid
         local_layer_ = resized_grid_[i]
         left_, top_, right_, bottom_ = get_pos(local_layer_)
         direction = get_direction(left, left_, top, top_)
+        if cur_step == 1:
+            direction_last = direction
+        else:
+            direction_last = vis_dataset[last_step_name]["Directions"][i]
         pos = (left, top, right, bottom)
         
         agent_type = LABEL_MAP[local_layer[top, left].item()]     
@@ -671,16 +695,16 @@ def gridmap2img_agents(vis_dataset, agent_next_actions, step_name, gridmap, grid
             if direction == "none":
                 icon = last_icons["icon"]["{}_{}".format(agent_type, i)][1]
                 position = last_icons["pos"]["{}_{}".format(agent_type, i)]
-                icon, current_map, last_position, bbox = paste_car_on_map(current_map, icon, pos, direction, agent_type, position_last=position, street_type=street_type)
+                icon, current_map, last_position, bbox = paste_car_on_map(current_map, icon, pos, direction, direction_last, agent_type, position_last=position, street_type=street_type)
             else:
                 icon = last_icons["icon"]["{}_{}".format(agent_type, i)][0]
-                icon, current_map, last_position, bbox = paste_car_on_map(current_map, icon, pos, direction, agent_type, street_type=street_type)
+                icon, current_map, last_position, bbox = paste_car_on_map(current_map, icon, pos, direction, direction_last, agent_type, street_type=street_type)
             last_icons["icon"]["{}_{}".format(agent_type, i)][1] = icon
             last_icons["pos"]["{}_{}".format(agent_type, i)] = last_position
         else:
             icon_img = Image.fromarray(icon) 
             icon_dict_local["icon"]["{}_{}".format(agent_type, i)] = [icon_img]
-            current_icon, current_map, last_position, bbox = paste_car_on_map(current_map, icon_img, pos, direction, agent_type, street_type=street_type)
+            current_icon, current_map, last_position, bbox = paste_car_on_map(current_map, icon_img, pos, direction, direction_last, agent_type, street_type=street_type)
             icon_dict_local["icon"]["{}_{}".format(agent_type, i)].append(current_icon)
             icon_dict_local["pos"]["{}_{}".format(agent_type, i)] = last_position
 
