@@ -31,56 +31,49 @@ if __name__ == "__main__":
     data_config = config['Data']
 
     test_dataset, test_dataloader = build_data_loader(data_config, test=True)
+    # train_dataset, test_dataset, train_dataloader, test_dataloader = build_data_loader(data_config)
 
     model_config = config['Model']
     model = MODEL_BUILDER[model_config['name']](model_config, config['Data']['mode'])
+    state_dict = torch.load(args.ckpt)["model_state_dict"]
+    model.load_state_dict(state_dict)
     model = CUDA(model)
 
-    loss_ce = nn.CrossEntropyLoss()
-    loss_bce = nn.BCELoss()
-
     # evaluate the accuracy and loss on test set
-    loss_test = 0.
     acc_test = 0.
     action_total = [0, 0, 0, 0, 0, 0, 0, 0]
     with torch.no_grad():
         for batch in tqdm(test_dataloader):
-            gt_types = batch["types"]
-            gt_actions = CUDA(batch["next_actions"][0])
-            gt_unary_concepts = CUDA(batch["predicates"]["unary"][0])
-            gt_binary_concepts = CUDA(batch["predicates"]["binary"][0])
+            gt_actions = CUDA(batch["next_actions"])
             pred_actions, pred_unary_concepts, pred_binary_concepts = model(CUDA(batch["img"]), CUDA(batch["bboxes"]), CUDA(batch["directions"]), CUDA(batch["priorities"]))
-            loss_actions = loss_ce(pred_actions, gt_actions)
-            loss = loss_actions
-            if args.add_concept_loss:
-                loss_concepts = loss_bce(pred_unary_concepts, gt_unary_concepts) \
-                                + loss_bce(pred_binary_concepts, gt_binary_concepts)
-                loss += loss_concepts            
-            loss_test += loss.item()
+            if args.only_supervise_car:
+                is_car_mask = CUDA(batch["car_mask"])
+                is_car_mask = is_car_mask.bool().reshape(-1)
+                pred_actions = pred_actions.reshape(-1, 4)[is_car_mask]
+                gt_actions = gt_actions.reshape(-1)[is_car_mask]
             acc, action_results_list = compute_action_acc(pred_actions, gt_actions)
             acc_test += acc
             for i, a in enumerate(action_results_list):
                 action_total[i] += a
 
-    loss_test /= len(test_dataset)
     acc_test /= len(test_dataset)
 
     slow_acc = action_total[0] / action_total[1]
     normal_acc = action_total[2] / action_total[3]
     fast_acc = action_total[4] / action_total[5]
     stop_acc = action_total[6] / action_total[7]
-    action_avg_acc = (slow_acc + normal_acc + fast_acc + stop_acc) / 4
-    action_weighted_acc = (action_total[0] + action_total[2] + action_total[4] + action_total[6]) / \
-                            (action_total[1] + action_total[3] + action_total[5] + action_total[7])
-    action_avg_acc_no_normal = (slow_acc + fast_acc + stop_acc) / 3
-    action_weighted_acc_no_normal = (action_total[0] + action_total[4] + action_total[6]) / \
-                            (action_total[1] + action_total[5] + action_total[7])
+
+    action_factor = 1 / action_total[1] + 1 / action_total[3] \
+                    + 1 / action_total[5] + 1 / action_total[7]
+
+    action_weighted_acc = (slow_acc / action_total[1] \
+                                + normal_acc / action_total[3] \
+                                + fast_acc / action_total[5] \
+                                + stop_acc / action_total[7]) / action_factor
+
     print("Slow: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(action_total[0], action_total[1], slow_acc))
     print("Normal: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(action_total[2], action_total[3], normal_acc))
     print("Fast: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(action_total[4], action_total[5], fast_acc))
     print("Stop: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(action_total[6], action_total[7], stop_acc))
-    print("Testing Loss: {:.4f}, Sample Avg Acc: {:.4f}".format(loss_test, acc_test))
-    print("Action Avg Acc: {:.4f}".format(action_avg_acc))
+    print("Testing Sample Avg Acc: {:.4f}".format(acc_test))
     print("Action Weighted Acc: {:.4f}".format(action_weighted_acc))
-    print("Action Avg Acc w/o Normal: {:.4f}".format(action_avg_acc_no_normal))
-    print("Action Weighted Acc w/o Normal: {:.4f}".format(action_weighted_acc_no_normal))

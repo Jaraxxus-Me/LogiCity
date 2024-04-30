@@ -450,22 +450,23 @@ def create_vis_dataset(args, logger):
         if predicate_name in STATIC_UNARY_PREDICATE_NAME_DICT:
             valid_concept_names.append(predicate_name)
 
-    # prepare icon img dict
-    icon_dict = {}
-    for key in PATH_DICT.keys():
-        if isinstance(PATH_DICT[key], list):
-            raw_img = [cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2RGB) for path in PATH_DICT[key]]
-            resized_img = [resize_with_aspect_ratio(img, ICON_SIZE_DICT[key]) for img in raw_img]
-            icon_dict[key] = resized_img
-        else:
-            raw_img = cv2.cvtColor(cv2.imread(PATH_DICT[key]), cv2.COLOR_BGR2RGB)
-            resized_img = resize_with_aspect_ratio(raw_img, ICON_SIZE_DICT[key])
-            icon_dict[key] = resized_img
+
 
     for stage, world_num in world_num_dict.items():
         if os.path.exists(os.path.join(args.dataset_dir, stage)):
             print("Dataset for {} already exists, skipping...".format(stage))
             continue
+
+        # prepare icon img dir dict
+        icon_dir_dict = {}
+        for key in ICON_DIR_PATH_DICT.keys():
+            if stage == "test":
+                icon_dir_path = ICON_DIR_PATH_DICT[key]["test"]
+            else:
+                icon_dir_path = ICON_DIR_PATH_DICT[key]["train"]
+            icon_num = len(os.listdir(icon_dir_path))
+            icon_dir_dict[key] = {"icon_dir_path": icon_dir_path, "icon_num": icon_num}
+
         vis_dataset = {}
         if "fixed" in args.exp:
             simulation_config["agent_yaml_file"] = "config/agents/Vis/{}/{}.yaml".format(args.mode, stage)
@@ -521,9 +522,10 @@ def create_vis_dataset(args, logger):
                 cached_observation["Time_Obs"][steps] = time_obs
 
             # Render imgs of current stimulated world
-            pkl2city_imgs(cached_observation, icon_dict, os.path.join(args.dataset_dir, "{}/world{}_agent{}_imgs".format(stage, world_idx, agent_num)))
+            pkl2city_imgs(cached_observation, icon_dir_dict, os.path.join(args.dataset_dir, "{}/world{}_agent{}_imgs".format(stage, world_idx, agent_num)))
 
             # Repack the pkl of current stimulated world
+            icon_dict = get_random_icon_dict(icon_dir_dict) # only want to get the sizes of icons from icon_dict
             last_icons = None
             for step in trange(1, args.max_steps):
                 step_name = "World{}_step{:0>4d}".format(world_idx, step)
@@ -572,12 +574,7 @@ def create_vis_dataset(args, logger):
                     # 2. get position
                     pos = (left, top, right, bottom)
                     # 3. get icon img array
-                    if agent_detailed_type.startswith('normal_'):
-                        icon_list = icon_dict[agent_type].copy()
-                        icon_id = agent_idx%len(icon_list)
-                        icon = icon_list[icon_id]
-                    else:
-                        icon = icon_dict[DETAILED_TYPE_MAP[agent_detailed_type]]
+                    icon = icon_dict[DETAILED_TYPE_MAP[agent_detailed_type]]
                     if last_icons is None:
                         icon_img = Image.fromarray(icon)
                         icon_dict_local["icon"]["{}_{}".format(agent_type, agent_idx)] = [icon_img]
