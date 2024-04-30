@@ -64,16 +64,6 @@ STATIC_UNARY_PREDICATE_NAME_DICT = {
     },
 }
 
-DETAILED_TYPE_MAP = {
-    "tiro": "Tiro", 
-    "bus": "Bus", 
-    "ambulance": "Ambulance", 
-    "old": "Pedestrian_old", 
-    "young": "Pedestrian_young", 
-    "police": "Police", 
-    "reckless": "Reckless"
-}
-
 IMAGE_BASE_PATH = "./imgs"
 
 PATH_DICT = {
