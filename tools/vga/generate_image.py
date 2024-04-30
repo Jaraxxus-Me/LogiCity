@@ -37,11 +37,11 @@ image_file_path = "./tools/vga/llm_instruction/original_file_name.txt"
 
 with open(concept_file_path, 'r') as file:
     content = file.read()
-    concept_list = ast.literal_eval(content)[4:8] # [Car, Bus, Pick up, Race]
+    concept_list = ast.literal_eval(content)[2:4] # [Car, Bus, Pick up, Race]
 
 with open(image_file_path, 'r') as file:
     content = file.read()
-    image_list = ast.literal_eval(content)[4:8] # [Car, Bus, Pick up, Race]
+    image_list = ast.literal_eval(content)[2:4] # [Car, Bus, Pick up, Race]
 
 print("concept_list: ", concept_list)
 print("image_list: ", image_list)
