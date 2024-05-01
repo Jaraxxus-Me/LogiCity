@@ -26,12 +26,16 @@ for type_name in os.listdir(original_dir):
             new_im[:, :, :3] = im
             background_color_1 = im[5, 5, :3].tolist()
             background_color_2 = im[-5, -5, :3].tolist()
+            background_color_3 = im[1, 1, :3].tolist()
+            background_color_4 = im[-2, -2, :3].tolist()
             for i in range(height):
                 for j in range(width):
                     cur_color = new_im[i, j, :3].tolist()
                     # if cur_color == background_color:
-                    if abs(cur_color[0]-background_color_1[0])+abs(cur_color[1]-background_color_1[1])+abs(cur_color[2]-background_color_1[2])<20 \
-                    or abs(cur_color[0]-background_color_2[0])+abs(cur_color[1]-background_color_2[1])+abs(cur_color[2]-background_color_2[2])<20:
+                    if abs(cur_color[0]-background_color_1[0])+abs(cur_color[1]-background_color_1[1])+abs(cur_color[2]-background_color_1[2])<200 \
+                    or abs(cur_color[0]-background_color_2[0])+abs(cur_color[1]-background_color_2[1])+abs(cur_color[2]-background_color_2[2])<200 \
+                    or abs(cur_color[0]-background_color_3[0])+abs(cur_color[1]-background_color_3[1])+abs(cur_color[2]-background_color_3[2])<200 \
+                    or abs(cur_color[0]-background_color_4[0])+abs(cur_color[1]-background_color_4[1])+abs(cur_color[2]-background_color_4[2])<200:
                         new_im[i, j, :] = np.array([255.0, 255.0, 255.0, 0])
             cv2.imwrite(os.path.join(type_dir_new, f"image_{idx}.png"), new_im)
             idx += 1
