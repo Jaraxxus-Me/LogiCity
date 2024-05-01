@@ -27,7 +27,7 @@ for type_name in os.listdir(original_dir):
     idx = 0
     for img_name in train_list:
         if "png" in img_name:
-            im = cv2.imread(os.path.join(type_dir, img_name))
+            im = cv2.imread(os.path.join(type_dir, img_name), cv2.IMREAD_UNCHANGED)
             cv2.imwrite(os.path.join(type_dir_train, f"image_{idx}.png"), im)
             idx += 1
     # testing icons
