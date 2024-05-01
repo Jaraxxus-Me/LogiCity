@@ -4,7 +4,7 @@ import numpy as np
 from segment_anything import SamPredictor, sam_model_registry
 
 original_dir = "external/picked"
-output_dir = "external/picked_transparent"
+output_dir = "external/picked_transparent_single_point"
 
 sam = sam_model_registry["default"](checkpoint="/home/data2/qiweidu/logicity/sam_weights/sam_vit_h_4b8939.pth")
 predictor = SamPredictor(sam)
@@ -26,16 +26,25 @@ for type_name in os.listdir(original_dir):
             im = cv2.imread(os.path.join(type_dir, img_name))
             height, width, channels = im.shape
             predictor.set_image(im)
+            # SAM with multiple-point prompts
+            # masks, _, _ = predictor.predict(
+            #     point_coords=np.array([
+            #         [width//2, height//2],
+            #         [width//2, height//4],
+            #         [width//2, height//8],
+            #         [width//2, height*3//4],
+            #         [width//2, height*7//8],
+            #     ]), 
+            #     point_labels=np.array([1, 1, 1, 1, 1]),
+            #     multimask_output = False
+            # )
+            # SAM with single-point prompts
             masks, _, _ = predictor.predict(
                 point_coords=np.array([
                     [width//2, height//2],
-                    [width//2, height//4],
-                    [width//2, height//8],
-                    [width//2, height*3//4],
-                    [width//2, height*7//8],
                 ]), 
-                point_labels=np.array([1, 1, 1, 1, 1]),
-                multimask_output = False
+                point_labels=np.array([1]),
+                multimask_output = True
             )
             mask_idx = masks.shape[0] - 1
             new_im = np.ones((height, width, 4)) * 255
