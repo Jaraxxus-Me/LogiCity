@@ -478,12 +478,15 @@ def create_vis_dataset(args, logger):
             print("Using random agents.")    
         # set min/max agent_num
         if stage == "train":
+            simulation_config["agent_region"] = 100
             min_agent_num = args.min_agent_num_train
             max_agent_num = args.max_agent_num_train
         elif stage == "val": 
+            simulation_config["agent_region"] = 120
             min_agent_num = args.min_agent_num_val
             max_agent_num = args.max_agent_num_val
         else:
+            simulation_config["agent_region"] = 120
             min_agent_num = args.min_agent_num_test
             max_agent_num = args.max_agent_num_test
         # Stimulate several worlds
