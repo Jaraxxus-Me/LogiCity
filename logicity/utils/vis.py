@@ -708,7 +708,7 @@ def gridmap2img_agents(vis_dataset, agent_next_actions, step_name, gridmap, grid
             icon_dict_local["icon"]["{}_{}".format(agent_type, i)].append(current_icon)
             icon_dict_local["pos"]["{}_{}".format(agent_type, i)] = last_position
 
-        vis_dataset[step_name]["Bboxes"][i] = bbox
+        vis_dataset[step_name]["Bboxes"][i] = (max(bbox[0],0), max(bbox[1],0), min(bbox[2],current_map.size[0]), min(bbox[3],current_map.size[1]))
         vis_dataset[step_name]["Next_actions"][i] = agent_next_actions[i]
 
     if last_icons is not None:
