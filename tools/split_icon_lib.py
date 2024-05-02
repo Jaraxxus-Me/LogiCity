@@ -2,9 +2,9 @@ import cv2
 import os
 import numpy as np
 
-original_dir = "external/picked_transparent"
-train_output_dir = "external/imgs/train"
-test_output_dir = "external/imgs/test"
+original_dir = "external/latest"
+train_output_dir = "imgs/train"
+test_output_dir = "imgs/test"
 
 train_icon_ratio = 0.8
 

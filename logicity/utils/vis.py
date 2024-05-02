@@ -65,26 +65,7 @@ STATIC_UNARY_PREDICATE_NAME_DICT = {
 }
 
 IMAGE_BASE_PATH = "./imgs"
-
-PATH_DICT = {
-    "Car": os.path.join(IMAGE_BASE_PATH, "car1.png"),
-    "Ambulance": os.path.join(IMAGE_BASE_PATH, "car_ambulance.png"),
-    "Bus": os.path.join(IMAGE_BASE_PATH, "car_bus.png"),
-    "Tiro": os.path.join(IMAGE_BASE_PATH, "car_tiro.png"),
-    "Police": os.path.join(IMAGE_BASE_PATH, "car_police.png"),
-    "Reckless": os.path.join(IMAGE_BASE_PATH, "car_reckless.png"),
-    "Pedestrian": os.path.join(IMAGE_BASE_PATH, "pedestrian1.png"),
-    "Pedestrian_old": os.path.join(IMAGE_BASE_PATH, "pedestrian_old.png"),
-    "Pedestrian_young": os.path.join(IMAGE_BASE_PATH, "pedestrian_young.png"),
-    "Walking Street": os.path.join(IMAGE_BASE_PATH, "walking.png"),
-    "Traffic Street": os.path.join(IMAGE_BASE_PATH, "traffic.png"),
-    "Overlap": os.path.join(IMAGE_BASE_PATH, "crossing.png"),
-    "Gas Station": os.path.join(IMAGE_BASE_PATH, "gas.png"),
-    "Garage": os.path.join(IMAGE_BASE_PATH, "garage.png"),
-    "House": [os.path.join(IMAGE_BASE_PATH, "house{}.png").format(i) for i in range(1, 4)],
-    "Office": [os.path.join(IMAGE_BASE_PATH, "office{}.png").format(i) for i in range(1, 4)],
-    "Store": [os.path.join(IMAGE_BASE_PATH, "store{}.png").format(i) for i in range(1, 4)],
-}
+# IMAGE_BASE_PATH = "./imgs_no_variance"
 
 ICON_DIR_PATH_DICT = {
     "Car": {
@@ -747,12 +728,12 @@ def pkl2city_imgs(cached_observation, vis_dataset, world_idx, icon_dir_dict, out
         grid_ = obs[key+1]["World"].numpy()
         icon_dict = get_random_icon_dict(icon_dir_dict) # sample icon from icon lib
         img, last_icons, vis_dataset = gridmap2img_agents(vis_dataset, list(obs[key]["Agent_actions"].values()), step_name, grid, grid_, icon_dict, static_map, last_icons, agents)
+        last_icons = get_random_last_icons(last_icons, vis_dataset[step_name]["Detailed_types"], icon_dict)
         xmin, xmax, ymin, ymax = crop
         img = img.crop((xmin, ymin, xmax, ymax))
         # Save the image
         output_path = "{}/step_{:0>4d}.png".format(output_folder, key)
         img.save(output_path)
-    # cv2.destroyAllWindows()
 
     return vis_dataset
 
@@ -782,3 +763,15 @@ def get_random_icon_dict(icon_dir_dict):
             resized_img = resize_with_aspect_ratio(raw_img, ICON_SIZE_DICT[key])
             icon_dict[key] = resized_img
     return icon_dict
+
+def get_random_last_icons(last_icons, detailed_types, icon_dict):
+    for i, agent_name in enumerate(list(last_icons["icon"].keys())):
+        detailed_type = detailed_types[i]
+        if detailed_type == "normal_car":
+            new_icon = icon_dict["Car"]
+        elif detailed_type == "normal_pedestrian":
+            new_icon = icon_dict["Pedestrian"]
+        else:  
+            new_icon = icon_dict[DETAILED_TYPE_MAP[detailed_type]]
+        last_icons["icon"][agent_name][0] = Image.fromarray(new_icon)
+    return last_icons
