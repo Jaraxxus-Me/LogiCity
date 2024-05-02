@@ -65,26 +65,7 @@ STATIC_UNARY_PREDICATE_NAME_DICT = {
 }
 
 IMAGE_BASE_PATH = "./imgs"
-
-PATH_DICT = {
-    "Car": os.path.join(IMAGE_BASE_PATH, "car1.png"),
-    "Ambulance": os.path.join(IMAGE_BASE_PATH, "car_ambulance.png"),
-    "Bus": os.path.join(IMAGE_BASE_PATH, "car_bus.png"),
-    "Tiro": os.path.join(IMAGE_BASE_PATH, "car_tiro.png"),
-    "Police": os.path.join(IMAGE_BASE_PATH, "car_police.png"),
-    "Reckless": os.path.join(IMAGE_BASE_PATH, "car_reckless.png"),
-    "Pedestrian": os.path.join(IMAGE_BASE_PATH, "pedestrian1.png"),
-    "Pedestrian_old": os.path.join(IMAGE_BASE_PATH, "pedestrian_old.png"),
-    "Pedestrian_young": os.path.join(IMAGE_BASE_PATH, "pedestrian_young.png"),
-    "Walking Street": os.path.join(IMAGE_BASE_PATH, "walking.png"),
-    "Traffic Street": os.path.join(IMAGE_BASE_PATH, "traffic.png"),
-    "Overlap": os.path.join(IMAGE_BASE_PATH, "crossing.png"),
-    "Gas Station": os.path.join(IMAGE_BASE_PATH, "gas.png"),
-    "Garage": os.path.join(IMAGE_BASE_PATH, "garage.png"),
-    "House": [os.path.join(IMAGE_BASE_PATH, "house{}.png").format(i) for i in range(1, 4)],
-    "Office": [os.path.join(IMAGE_BASE_PATH, "office{}.png").format(i) for i in range(1, 4)],
-    "Store": [os.path.join(IMAGE_BASE_PATH, "store{}.png").format(i) for i in range(1, 4)],
-}
+# IMAGE_BASE_PATH = "./imgs_no_variance"
 
 ICON_DIR_PATH_DICT = {
     "Car": {
