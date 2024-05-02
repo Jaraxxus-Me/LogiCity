@@ -478,15 +478,15 @@ def create_vis_dataset(args, logger):
             print("Using random agents.")    
         # set min/max agent_num
         if stage == "train":
-            simulation_config["agent_region"] = 120
+            simulation_config["agent_region"] = 100
             min_agent_num = args.min_agent_num_train
             max_agent_num = args.max_agent_num_train
         elif stage == "val": 
-            simulation_config["agent_region"] = 120
+            simulation_config["agent_region"] = 100
             min_agent_num = args.min_agent_num_val
             max_agent_num = args.max_agent_num_val
         else:
-            simulation_config["agent_region"] = 120
+            simulation_config["agent_region"] = 100
             min_agent_num = args.min_agent_num_test
             max_agent_num = args.max_agent_num_test
         # Stimulate several worlds
@@ -534,15 +534,16 @@ def create_vis_dataset(args, logger):
                 crop=[0, crop_size, 0, crop_size]
             )
         
-        for step_name in vis_dataset:
+        for step_name in list(vis_dataset.keys()):
             agent_out = False
-            for bbox in vis_dataset[step_name]["Bboxes"].values():
+            for bbox in list(vis_dataset[step_name]["Bboxes"].values()):
                 if bbox[2] > crop_size or bbox[3] > crop_size:
                     agent_out = True
                     print(f"In stage {stage} step {step_name}, bbox {bbox} is out of the map region {crop_size}!")
                     break
             if agent_out:
                 del vis_dataset[step_name]
+
 
         if not os.path.exists(os.path.join(args.dataset_dir, stage)):
             os.makedirs(os.path.join(args.dataset_dir, stage))
