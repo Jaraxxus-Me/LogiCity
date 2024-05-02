@@ -728,6 +728,7 @@ def pkl2city_imgs(cached_observation, vis_dataset, world_idx, icon_dir_dict, out
         grid_ = obs[key+1]["World"].numpy()
         icon_dict = get_random_icon_dict(icon_dir_dict) # sample icon from icon lib
         img, last_icons, vis_dataset = gridmap2img_agents(vis_dataset, list(obs[key]["Agent_actions"].values()), step_name, grid, grid_, icon_dict, static_map, last_icons, agents)
+        last_icons = get_random_last_icons(last_icons, vis_dataset[step_name]["Detailed_types"], icon_dict)
         xmin, xmax, ymin, ymax = crop
         img = img.crop((xmin, ymin, xmax, ymax))
         # Save the image
@@ -763,3 +764,15 @@ def get_random_icon_dict(icon_dir_dict):
             resized_img = resize_with_aspect_ratio(raw_img, ICON_SIZE_DICT[key])
             icon_dict[key] = resized_img
     return icon_dict
+
+def get_random_last_icons(last_icons, detailed_types, icon_dict):
+    for i, agent_name in enumerate(list(last_icons["icon"].keys())):
+        detailed_type = detailed_types[i]
+        if detailed_type == "normal_car":
+            new_icon = icon_dict["Car"]
+        elif detailed_type == "normal_pedestrian":
+            new_icon = icon_dict["Pedestrian"]
+        else:  
+            new_icon = icon_dict[DETAILED_TYPE_MAP[detailed_type]]
+        last_icons["icon"][agent_name][0] = Image.fromarray(new_icon)
+    return last_icons
