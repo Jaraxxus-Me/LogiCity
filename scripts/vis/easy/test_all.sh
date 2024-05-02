@@ -28,4 +28,4 @@ python3 tools/test_vis_input.py --config config/tasks/Vis/ResNetNLM/easy_100_fix
 
 python3 tools/test_vis_input.py --config config/tasks/Vis/ResNetNLM/easy_100_fixed_no_variance_e2e.yaml \
     --ckpt vis_input_weights/easy/easy_100_fixed_no_variance_nlm_e2e/easy_100_fixed_no_variance_nlm_e2e_best.pth \
-    >> log_sim/easy_100_fixed_no_variance_nlm_modular_test.log
+    >> log_sim/easy_100_fixed_no_variance_nlm_e2e_test.log
