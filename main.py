@@ -533,6 +533,16 @@ def create_vis_dataset(args, logger):
                 output_folder = os.path.join(args.dataset_dir, "{}/world{}_agent{}_imgs".format(stage, world_idx, agent_num)),
                 crop=[0, crop_size, 0, crop_size]
             )
+        
+        for step_name in vis_dataset:
+            agent_out = False
+            for bbox in vis_dataset[step_name]["Bboxes"].values():
+                if bbox[2] > crop_size or bbox[3] > crop_size:
+                    agent_out = True
+                    print(f"In stage {stage} step {step_name}, bbox {bbox} is out of the map region {crop_size}!")
+                    break
+            if agent_out:
+                del vis_dataset[step_name]
 
         if not os.path.exists(os.path.join(args.dataset_dir, stage)):
             os.makedirs(os.path.join(args.dataset_dir, stage))

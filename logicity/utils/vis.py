@@ -735,15 +735,6 @@ def pkl2city_imgs(cached_observation, vis_dataset, world_idx, icon_dir_dict, out
         output_path = "{}/step_{:0>4d}.png".format(output_folder, key)
         img.save(output_path)
 
-        agent_out = False
-        for bbox in vis_dataset[step_name]["Bboxes"].values():
-            if bbox[2] > xmax or bbox[3] > ymax:
-                agent_out = True
-                print(f"In {step_name}, bbox {bbox} is out of the map region!")
-                break
-        if agent_out:
-            del vis_dataset[step_name]
-
     return vis_dataset
 
 def get_random_icon_dict(icon_dir_dict):
