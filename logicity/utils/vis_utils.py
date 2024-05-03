@@ -29,6 +29,23 @@ def compute_action_acc(pred, label):
     return acc, [slow_correct_num, slow_gt_num, normal_correct_num, normal_gt_num, \
             fast_correct_num, fast_gt_num, stop_correct_num, stop_gt_num]
 
+def compute_concept_acc(pred, label):
+    pred = CPU(pred)
+    label = CPU(label)
+    concept_num = label.shape[-1]
+    pred = pred > 0.5
+    label = label > 0.5
+    acc = np.sum((pred == label)&label) / np.sum(label)
+
+    concept_num_list = [[], []]
+    for i in range(concept_num):
+        correct_num = np.sum(((pred == label)&label)[..., i])
+        gt_num = np.sum(label[..., i])
+        concept_num_list[0].append(correct_num)
+        concept_num_list[1].append(gt_num)
+
+    return acc, concept_num_list
+
 def build_data_loader(data_config, test=False):
     vis_dataset_path = data_config['data_path']
     dataset_name = data_config['dataset_name']

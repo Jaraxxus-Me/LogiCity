@@ -57,7 +57,7 @@ for type_name in os.listdir(original_dir):
             for i in range(height):
                 for j in range(width):
                     if masks[mask_idx][i, j] == False:
-                        new_im[i, j, :] = np.array([255.0, 255.0, 255.0, 0])
+                        new_im[i, j, :] = np.array([0, 0, 0, 0])
             cv2.imwrite(os.path.join(type_dir_new, f"image_{idx}.png"), new_im)
             print(f"image_{idx}.png")
             idx += 1

@@ -36,6 +36,6 @@ for type_name in os.listdir(original_dir):
                     or abs(cur_color[0]-background_color_2[0])+abs(cur_color[1]-background_color_2[1])+abs(cur_color[2]-background_color_2[2])<200 \
                     or abs(cur_color[0]-background_color_3[0])+abs(cur_color[1]-background_color_3[1])+abs(cur_color[2]-background_color_3[2])<200 \
                     or abs(cur_color[0]-background_color_4[0])+abs(cur_color[1]-background_color_4[1])+abs(cur_color[2]-background_color_4[2])<200:
-                        new_im[i, j, :] = np.array([255.0, 255.0, 255.0, 0])
+                        new_im[i, j, :] = np.array([0, 0, 0, 0])
             cv2.imwrite(os.path.join(type_dir_new, f"image_{idx}.png"), new_im)
             idx += 1
