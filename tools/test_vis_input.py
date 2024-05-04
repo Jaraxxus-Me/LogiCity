@@ -8,7 +8,7 @@ import yaml
 from logicity.utils.dataset import VisDataset
 from torch.utils.data import DataLoader
 from logicity.predictor import MODEL_BUILDER
-from logicity.utils.vis_utils import CUDA, build_data_loader, compute_action_acc
+from logicity.utils.vis_utils import CUDA, build_data_loader, compute_action_acc, compute_concept_acc
 
 def CPU(x):
     return x.detach().cpu().numpy() if isinstance(x, torch.Tensor) else x
@@ -41,10 +41,18 @@ if __name__ == "__main__":
 
     # evaluate the accuracy and loss on test set
     acc_test = 0.
+    unary_acc_test = 0.
+    binary_acc_test = 0.
     action_total = [0, 0, 0, 0, 0, 0, 0, 0]
+    correct_unary_total = [0, 0, 0, 0, 0, 0, 0, 0]
+    gt_unary_total = [0, 0, 0, 0, 0, 0, 0, 0]
+    correct_binary_total = [0, 0, 0, 0]
+    gt_binary_total = [0, 0, 0, 0]
     with torch.no_grad():
         for batch in tqdm(test_dataloader):
             gt_actions = CUDA(batch["next_actions"])
+            gt_unary_concepts = CUDA(batch["predicates"]["unary"])
+            gt_binary_concepts = CUDA(batch["predicates"]["binary"])
             pred_actions, pred_unary_concepts, pred_binary_concepts = model(CUDA(batch["img"]), CUDA(batch["bboxes"]), CUDA(batch["directions"]), CUDA(batch["priorities"]))
             if args.only_supervise_car:
                 is_car_mask = CUDA(batch["car_mask"])
@@ -56,7 +64,23 @@ if __name__ == "__main__":
             for i, a in enumerate(action_results_list):
                 action_total[i] += a
 
+            unary_acc, unary_list = compute_concept_acc(pred_unary_concepts, gt_unary_concepts)
+            binary_acc, binary_list = compute_concept_acc(pred_binary_concepts, gt_binary_concepts)
+            unary_acc_test += unary_acc
+            binary_acc_test += binary_acc
+            
+            for i, a in enumerate(unary_list[0]):
+                correct_unary_total[i] += a
+            for i, a in enumerate(binary_list[0]):
+                correct_binary_total[i] += a
+            for i, a in enumerate(unary_list[1]):
+                gt_unary_total[i] += a
+            for i, a in enumerate(binary_list[1]):
+                gt_binary_total[i] += a
+
     acc_test /= len(test_dataset)
+    unary_acc_test /= len(test_dataset)
+    binary_acc_test /= len(test_dataset)
 
     slow_acc = action_total[0] / action_total[1]
     normal_acc = action_total[2] / action_total[3]
@@ -70,6 +94,26 @@ if __name__ == "__main__":
                                 + normal_acc / action_total[3] \
                                 + fast_acc / action_total[5] \
                                 + stop_acc / action_total[7]) / action_factor
+    
+    unary_factor = 0
+    for i in range(len(unary_list[0])):
+        unary_factor += 1/gt_unary_total[i]
+    print("unary_factor", unary_factor)
+    unary_weighted_acc = 0
+    for i in range(len(unary_list[0])):
+        print(f"correct_unary_total[{i}]: {correct_unary_total[i]}, gt_unary_total[{i}]: {gt_unary_total[i]}")
+        unary_weighted_acc += (correct_unary_total[i]/gt_unary_total[i])/gt_unary_total[i]
+    unary_weighted_acc /= unary_factor
+
+    binary_factor = 0
+    for i in range(len(binary_list[0])):
+        binary_factor += 1/gt_binary_total[i]
+    print("binary_factor", binary_factor)
+    binary_weighted_acc = 0
+    for i in range(len(binary_list[0])):
+        print(f"correct_binary_total[{i}]: {correct_binary_total[i]}, gt_binary_total[{i}]: {gt_binary_total[i]}")
+        binary_weighted_acc += (correct_binary_total[i]/gt_binary_total[i])/gt_binary_total[i]
+    binary_weighted_acc /= binary_factor
 
     print("Slow: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(action_total[0], action_total[1], slow_acc))
     print("Normal: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(action_total[2], action_total[3], normal_acc))
@@ -77,3 +121,8 @@ if __name__ == "__main__":
     print("Stop: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(action_total[6], action_total[7], stop_acc))
     print("Testing Sample Avg Acc: {:.4f}".format(acc_test))
     print("Action Weighted Acc: {:.4f}".format(action_weighted_acc))
+    print("Unary Concept Sample Avg Acc: {:.4f}".format(unary_acc_test))
+    print("Binary Concept Sample Avg Acc: {:.4f}".format(binary_acc_test))
+    print("Unary Concept Weighted Acc: {:.4f}".format(unary_weighted_acc))
+    print("Binary Concept Weighted Acc: {:.4f}".format(binary_weighted_acc))
+    print()
