@@ -28,27 +28,34 @@ register_free_crossattn_upblock2d(base, b1=1.1, b2=1.2, s1=0.6, s2=0.4)
 # base.enable_sequential_cpu_offload()
 
 num_of_denoising_steps = 100
-edit_strength_list = [0.78, 0.8, 0.84, 0.88, 0.92, 0.96, 0.98]
+edit_strength_list = [0.8, 0.84, 0.88]
 
 ####################################################
 
 concept_file_path = "./tools/vga/llm_instruction/original_concept.txt"
 image_file_path = "./tools/vga/llm_instruction/original_file_name.txt"
+num = [8, 18, 25, 27]
 
 with open(concept_file_path, 'r') as file:
     content = file.read()
-    concept_list = ast.literal_eval(content)[2:4] # [Car, Bus, Pick up, Race]
+    concept_list = []
+    all_list = ast.literal_eval(content) # [Car, Bus, Pick up, Race]
+    for i in num:
+        concept_list.append(all_list[i])
 
 with open(image_file_path, 'r') as file:
     content = file.read()
-    image_list = ast.literal_eval(content)[2:4] # [Car, Bus, Pick up, Race]
+    image_list = []
+    all_list = ast.literal_eval(content) # [Car, Bus
+    for i in num:
+        image_list.append(all_list[i])
 
 print("concept_list: ", concept_list)
 print("image_list: ", image_list)
 
 for each_concept, each_image in zip(concept_list, image_list):
 
-    image_addr = f"imgs/{each_image}.png"
+    image_addr = f"imgs_origin/{each_image}.png"
     image_init = load_image(image_addr)
     image_init_height, image_init_width = image_init.size
     image_gen_height, image_gen_width = int(768 * image_init_height / image_init_width), 768
