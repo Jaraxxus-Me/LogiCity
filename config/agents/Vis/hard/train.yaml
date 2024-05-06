@@ -60,7 +60,7 @@ agents:
   concepts:
     type: Car
     priority: 2
-    bus: 1.0
+    police: 1.0
 
 - class: Private_car
   id: 3

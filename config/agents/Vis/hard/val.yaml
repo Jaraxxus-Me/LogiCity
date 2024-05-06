@@ -7,7 +7,6 @@ agents:
   concepts:
     type: Car
     priority: 1
-    ambulance: 1.0
 
 - class: Pedestrian
   id: 1
@@ -78,6 +77,7 @@ agents:
   concepts:
     type: Car
     priority: 3
+    tiro: 1.0
 
 - class: Private_car
   id: 4
@@ -112,7 +112,7 @@ agents:
   gplanner: A*vg
   concepts:
     type: Car
-    tiro: 1.0
+    ambulance: 1.0
     priority: 7
 
 - class: Private_car
@@ -122,4 +122,4 @@ agents:
   concepts:
     type: Car
     priority: 8
-    reckless: 1.0
+    ambulance: 1.0

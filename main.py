@@ -461,11 +461,11 @@ def create_vis_dataset(args, logger):
 
         # prepare icon img dir dict
         icon_dir_dict = {}
-        for key in ICON_DIR_PATH_DICT.keys():
+        for key in ICON_DIR_PATH_DICT_ALL.keys():
             if stage == "test":
-                icon_dir_path = ICON_DIR_PATH_DICT[key]["test"]
+                icon_dir_path = ICON_DIR_PATH_DICT_ALL[key]["test"]
             else:
-                icon_dir_path = ICON_DIR_PATH_DICT[key]["train"]
+                icon_dir_path = ICON_DIR_PATH_DICT_ALL[key]["train"]
             icon_num = len(os.listdir(icon_dir_path))
             icon_dir_dict[key] = {"icon_dir_path": icon_dir_path, "icon_num": icon_num}
 

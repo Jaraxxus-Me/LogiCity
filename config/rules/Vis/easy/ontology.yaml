@@ -17,6 +17,16 @@ Predicates:
       method: IsAmb(Entity)
       function: logicity.utils.pred_converter.z3.IsAmb
       description: Checks if the agent has concept "ambulance".
+  - IsBus:
+      arity: 1
+      method: IsBus(Entity)
+      function: logicity.utils.pred_converter.z3.IsBus
+      description: Checks if the agent has concept "bus".
+  - IsPolice:
+      arity: 1
+      method: IsPolice(Entity)
+      function: logicity.utils.pred_converter.z3.IsPolice
+      description: Checks if the agent has concept "police".
   - IsTiro:
       arity: 1
       method: IsTiro(Entity)
@@ -32,6 +42,11 @@ Predicates:
       method: IsOld(Entity)
       function: logicity.utils.pred_converter.z3.IsOld
       description: Checks if the agent has concept "old".
+  - IsYoung:
+      arity: 1
+      method: IsYoung(Entity)
+      function: logicity.utils.pred_converter.z3.IsYoung
+      description: Checks if the agent has concept "young".
   - IsAtInter:
       arity: 1
       method: IsAtInter(Entity)
@@ -57,6 +72,21 @@ Predicates:
       method: CollidingClose(Entity, Entity)
       function: logicity.utils.pred_converter.z3.CollidingClose
       description: Checks if agent x is about to collide with agent y.
+  - LeftOf:
+      arity: 2
+      method: LeftOf(Entity, Entity)
+      function: logicity.utils.pred_converter.z3.LeftOf
+      description: Checks if agent x is left of agent y.
+  - RightOf:
+      arity: 2
+      method: RightOf(Entity, Entity)
+      function: logicity.utils.pred_converter.z3.RightOf
+      description: Checks if agent x is right of agent y.
+  - NextTo:
+      arity: 2
+      method: NextTo(Entity, Entity)
+      function: logicity.utils.pred_converter.z3.NextTo
+      description: Checks if agent x is next to agent y.
   - Stop:
       arity: 1
       method: Stop(Entity)

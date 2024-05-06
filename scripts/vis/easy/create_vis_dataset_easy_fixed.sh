@@ -11,14 +11,14 @@ conda activate logicity
 # EXPNAME="easy_100_fixed_no_variance"
 
 ### use this EXPNAME for a temp demo ###
-EXPNAME="easy_100_fixed_demo"
+EXPNAME="easy_100_fixed_try"
 python3 main.py \
         --config config/tasks/Vis/easy.yaml \
         --mode easy \
         --exp ${EXPNAME} \
-        --train_world_num 40 \
-        --val_world_num 10 \
-        --test_world_num 10 \
+        --train_world_num 5 \
+        --val_world_num 1 \
+        --test_world_num 1 \
         --dataset_dir vis_dataset/${EXPNAME} \
-        --max_steps 100 \
+        --max_steps 10 \
         --create_vis_dataset

@@ -138,6 +138,77 @@ ICON_DIR_PATH_DICT = {
     },
 }
 
+ICON_DIR_PATH_DICT_ALL = {
+    "Car": {
+        "train": os.path.join(IMAGE_BASE_PATH, "all", "car_normal"),
+        "test": os.path.join(IMAGE_BASE_PATH, "all", "car_normal"),
+    },
+    "Ambulance": {
+        "train": os.path.join(IMAGE_BASE_PATH, "all", "car_ambulance"),
+        "test": os.path.join(IMAGE_BASE_PATH, "all", "car_ambulance"),
+    },
+    "Bus": {
+        "train": os.path.join(IMAGE_BASE_PATH, "all", "car_bus"),
+        "test": os.path.join(IMAGE_BASE_PATH, "all", "car_bus"),
+    },
+    "Tiro": {
+        "train": os.path.join(IMAGE_BASE_PATH, "all", "car_tiro"),
+        "test": os.path.join(IMAGE_BASE_PATH, "all", "car_tiro"),
+    },
+    "Police": {
+        "train": os.path.join(IMAGE_BASE_PATH, "all", "car_police"),
+        "test": os.path.join(IMAGE_BASE_PATH, "all", "car_police"),
+    },
+    "Reckless": {
+        "train": os.path.join(IMAGE_BASE_PATH, "all", "car_reckless"),
+        "test": os.path.join(IMAGE_BASE_PATH, "all", "car_reckless"),
+    },
+    "Pedestrian": {
+        "train": os.path.join(IMAGE_BASE_PATH, "all", "pedestrian_normal"),
+        "test": os.path.join(IMAGE_BASE_PATH, "all", "pedestrian_normal"),
+    },
+    "Pedestrian_old": {
+        "train": os.path.join(IMAGE_BASE_PATH, "all", "pedestrian_old"),
+        "test": os.path.join(IMAGE_BASE_PATH, "all", "pedestrian_old"),
+    },
+    "Pedestrian_young": {
+        "train": os.path.join(IMAGE_BASE_PATH, "all", "pedestrian_young"),
+        "test": os.path.join(IMAGE_BASE_PATH, "all", "pedestrian_young"),
+    },
+    "Walking Street": {
+        "train": os.path.join(IMAGE_BASE_PATH, "all", "walking"),
+        "test": os.path.join(IMAGE_BASE_PATH, "all", "walking"),
+    },
+    "Traffic Street": {
+        "train": os.path.join(IMAGE_BASE_PATH, "all", "traffic"),
+        "test": os.path.join(IMAGE_BASE_PATH, "all", "traffic"),
+    },
+    "Overlap": {
+        "train": os.path.join(IMAGE_BASE_PATH, "all", "crossing"),
+        "test": os.path.join(IMAGE_BASE_PATH, "all", "crossing"),
+    },
+    "Gas Station": {
+        "train": os.path.join(IMAGE_BASE_PATH, "all", "gas"),
+        "test": os.path.join(IMAGE_BASE_PATH, "all", "gas"),
+    },
+    "Garage": {
+        "train": os.path.join(IMAGE_BASE_PATH, "all", "garage"),
+        "test": os.path.join(IMAGE_BASE_PATH, "all", "garage"),
+    },
+    "House": {
+        "train": os.path.join(IMAGE_BASE_PATH, "all", "house"),
+        "test": os.path.join(IMAGE_BASE_PATH, "all", "house"),
+    },
+    "Office": {
+        "train": os.path.join(IMAGE_BASE_PATH, "all", "office"),
+        "test": os.path.join(IMAGE_BASE_PATH, "all", "office"),
+    },
+    "Store": {
+        "train": os.path.join(IMAGE_BASE_PATH, "all", "store"),
+        "test": os.path.join(IMAGE_BASE_PATH, "all", "store"),
+    },
+}
+
 SCALE = 8
 
 ICON_SIZE_DICT = {
@@ -742,27 +813,24 @@ def get_random_icon_dict(icon_dir_dict):
     for key in icon_dir_dict.keys():
         icon_dir_path = icon_dir_dict[key]["icon_dir_path"]
         icon_num = icon_dir_dict[key]["icon_num"]
-        if key in ["House", "Office", "Store"]:
-            icon_path_list = []
-            for _ in range(3):
-                icon_idx = np.random.choice(icon_num)
-                # option 1 (faster, for imgs with formulated names)
-                # icon_path_list.append(os.path.join(icon_dir_path, "image_{}.png".format(icon_idx)))
-                # option 2 (slower, for imgs with random names)
-                icon_path_list.append(os.path.join(icon_dir_path, os.listdir(icon_dir_path)[icon_idx]))
-            raw_img = [cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2RGB) for path in icon_path_list]
-            resized_img = [resize_with_aspect_ratio(img, ICON_SIZE_DICT[key]) for img in raw_img]
-            icon_dict[key] = resized_img
-        else:
+        icon_path_list = []
+        for _ in range(20):
             icon_idx = np.random.choice(icon_num)
-            # option 1 (faster, for imgs with formulated names)
-            # icon_path = os.path.join(icon_dir_path, "image_{}.png".format(icon_idx))
-            # option 2 (slower, for imgs with random names)
-            icon_path = os.path.join(icon_dir_path, os.listdir(icon_dir_path)[icon_idx])
-            raw_img = cv2.cvtColor(cv2.imread(icon_path), cv2.COLOR_BGR2RGB)
-            resized_img = resize_with_aspect_ratio(raw_img, ICON_SIZE_DICT[key])
-            icon_dict[key] = resized_img
+            icon_path_list.append(os.path.join(icon_dir_path, os.listdir(icon_dir_path)[icon_idx]))
+        raw_img = [cv2.imread(path, cv2.IMREAD_UNCHANGED) for path in icon_path_list]  # Load images with alpha channel
+        resized_img = [resize_with_aspect_ratio(img, ICON_SIZE_DICT[key]) for img in raw_img]
+        cropped_img = [remove_padding(img) for img in resized_img]
+        icon_dict[key] = cropped_img
     return icon_dict
+
+def remove_padding(img):
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    _, alpha = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY)
+    contours, _ = cv2.findContours(alpha, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    x, y, w, h = cv2.boundingRect(contours[0])
+    cropped_img = img[y:y+h, x:x+w]
+    return cropped_img
+
 
 def get_random_last_icons(last_icons, detailed_types, icon_dict):
     for i, agent_name in enumerate(list(last_icons["icon"].keys())):
