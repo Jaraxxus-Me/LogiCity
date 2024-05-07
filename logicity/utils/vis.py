@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import time
 import random
 import cv2
 from PIL import Image, ImageDraw, ImageFont
@@ -502,11 +503,8 @@ def gridmap2img_static(gridmap, icon_dict, ego_id):
             right = torch.max(cols).item()
             top = torch.min(rows).item()
             bottom = torch.max(rows).item()
-            if building in ["House", "Office", "Store"]:
-                icon_id = np.random.choice(3)
-                icon = building_icon[icon_id]
-            else:
-                icon = building_icon
+            icon_id = np.random.choice(len(building_icon))
+            icon = building_icon[icon_id]
             icon_mask = np.sum(icon > 1, axis=2) > 0
             img[bottom-icon.shape[0]:bottom, left:left+icon.shape[1]][icon_mask] = icon[icon_mask]
 
@@ -715,24 +713,42 @@ def gridmap2img_agents(vis_dataset, agent_next_actions, step_name, gridmap, grid
                 if concepts["reckless"] == 1.0:
                     is_reckless = True
             if is_ambulance:
-                icon = icon_dict["Ambulance"]
+                icon_list = icon_dict["Ambulance"]
+                icon_id = i%len(icon_list)
+                icon = icon_list[icon_id]
             elif is_bus:
-                icon = icon_dict["Bus"]
+                icon_list = icon_dict["Bus"]
+                icon_id = i%len(icon_list)
+                icon = icon_list[icon_id]
             elif is_tiro:
-                icon = icon_dict["Tiro"]
+                icon_list = icon_dict["Tiro"]
+                icon_id = i%len(icon_list)
+                icon = icon_list[icon_id]
             elif is_old:
-                icon = icon_dict["Pedestrian_old"]
+                icon_list = icon_dict["Pedestrian_old"]
+                icon_id = i%len(icon_list)
+                icon = icon_list[icon_id]
             elif is_young:
-                icon = icon_dict["Pedestrian_young"]
+                icon_list = icon_dict["Pedestrian_young"]
+                icon_id = i%len(icon_list)
+                icon = icon_list[icon_id]
             elif is_police:
-                icon = icon_dict["Police"]
+                icon_list = icon_dict["Police"]
+                icon_id = i%len(icon_list)
+                icon = icon_list[icon_id]
             elif is_reckless:
-                icon = icon_dict["Reckless"]
+                icon_list = icon_dict["Reckless"]
+                icon_id = i%len(icon_list)
+                icon = icon_list[icon_id]
             else:
                 if agent_type == "Pedestrian":
-                    icon = icon_dict["Pedestrian"]
+                    icon_list = icon_dict["Pedestrian"]
+                    icon_id = i%len(icon_list)
+                    icon = icon_list[icon_id]
                 if agent_type == "Car":
-                    icon = icon_dict["Car"]
+                    icon_list = icon_dict["Car"]
+                    icon_id = i%len(icon_list)
+                    icon = icon_list[icon_id]
         else:
             icon_list = icon_dict[agent_type]
             icon_id = i%len(icon_list)
@@ -810,36 +826,74 @@ def pkl2city_imgs(cached_observation, vis_dataset, world_idx, icon_dir_dict, out
 
 def get_random_icon_dict(icon_dir_dict):
     icon_dict = {}
+    print("Generating random icons for each agent type...")
+    s = time.time()
     for key in icon_dir_dict.keys():
         icon_dir_path = icon_dir_dict[key]["icon_dir_path"]
         icon_num = icon_dir_dict[key]["icon_num"]
-        icon_path_list = []
-        for _ in range(20):
+        if key in ["House", "Office", "Store", "Gas Station", "Garage"]:
+            icon_path_list = []
+            for _ in range(10):
+                icon_idx = np.random.choice(icon_num)
+                # option 1 (faster, for imgs with formulated names)
+                # icon_path_list.append(os.path.join(icon_dir_path, "image_{}.png".format(icon_idx)))
+                # option 2 (slower, for imgs with random names)
+                icon_path_list.append(os.path.join(icon_dir_path, os.listdir(icon_dir_path)[icon_idx]))
+            raw_img = [remove_background_alpha_channel(path) for path in icon_path_list]
+            resized_img = [resize_with_aspect_ratio(img, ICON_SIZE_DICT[key]) for img in raw_img]
+            icon_dict[key] = resized_img
+        elif key in ["Car", "Pedestrian", "Ambulance", "Bus", "Tiro", "Police", "Reckless", "Pedestrian_old", "Pedestrian_young"]:
+            icon_path_list = []
+            for _ in range(5):
+                icon_idx = np.random.choice(icon_num)
+                # option 1 (faster, for imgs with formulated names)
+                # icon_path_list.append(os.path.join(icon_dir_path, "image_{}.png".format(icon_idx)))
+                # option 2 (slower, for imgs with random names)
+                icon_path_list.append(os.path.join(icon_dir_path, os.listdir(icon_dir_path)[icon_idx]))
+            raw_img = [remove_background_alpha_channel(path) for path in icon_path_list]
+            resized_img = [resize_with_aspect_ratio(img, ICON_SIZE_DICT[key]) for img in raw_img]
+            # check and convert [255, 255, 255] to [0, 0, 0]
+
+            icon_dict[key] = resized_img
+        else:
             icon_idx = np.random.choice(icon_num)
-            icon_path_list.append(os.path.join(icon_dir_path, os.listdir(icon_dir_path)[icon_idx]))
-        raw_img = [cv2.imread(path, cv2.IMREAD_UNCHANGED) for path in icon_path_list]  # Load images with alpha channel
-        resized_img = [resize_with_aspect_ratio(img, ICON_SIZE_DICT[key]) for img in raw_img]
-        cropped_img = [remove_padding(img) for img in resized_img]
-        icon_dict[key] = cropped_img
+            # option 1 (faster, for imgs with formulated names)
+            # icon_path = os.path.join(icon_dir_path, "image_{}.png".format(icon_idx))
+            # option 2 (slower, for imgs with random names)
+            icon_path = os.path.join(icon_dir_path, os.listdir(icon_dir_path)[icon_idx])
+            raw_img = cv2.cvtColor(cv2.imread(icon_path), cv2.COLOR_BGR2RGB)
+            resized_img = resize_with_aspect_ratio(raw_img, ICON_SIZE_DICT[key])
+            icon_dict[key] = resized_img
+    e = time.time()
+    print("Time taken to generate random icons: {:.2f}s".format(e-s))
     return icon_dict
 
-def remove_padding(img):
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    _, alpha = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY)
-    contours, _ = cv2.findContours(alpha, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    x, y, w, h = cv2.boundingRect(contours[0])
-    cropped_img = img[y:y+h, x:x+w]
-    return cropped_img
+def remove_background_alpha_channel(image_path):
+    # Read the image
+    image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED) # Make sure to read the alpha channel if present
+    if image.shape[2] == 4:  # Check if there is an alpha channel
+        # Use the alpha channel as a mask to set background pixels to black
+        # Here we assume background is where alpha value is 0
+        mask = image[:, :, 3] == 0
+        image[mask, :3] = [0, 0, 0]  # Set color channels to black where mask is True
+    image = cv2.cvtColor(image, cv2.COLOR_BGRA2RGB)  # Convert to RGB
+    return image  # Return only the RGB channels
 
 
 def get_random_last_icons(last_icons, detailed_types, icon_dict):
     for i, agent_name in enumerate(list(last_icons["icon"].keys())):
         detailed_type = detailed_types[i]
         if detailed_type == "normal_car":
-            new_icon = icon_dict["Car"]
+            new_icon_list = icon_dict["Car"]
+            icon_id = i%len(new_icon_list)
+            new_icon = new_icon_list[icon_id]
         elif detailed_type == "normal_pedestrian":
-            new_icon = icon_dict["Pedestrian"]
+            new_icon_list = icon_dict["Pedestrian"]
+            icon_id = i%len(new_icon_list)
+            new_icon = new_icon_list[icon_id]
         else:  
-            new_icon = icon_dict[DETAILED_TYPE_MAP[detailed_type]]
+            new_icon_list = icon_dict[DETAILED_TYPE_MAP[detailed_type]]
+            icon_id = i%len(new_icon_list)
+            new_icon = new_icon_list[icon_id]
         last_icons["icon"][agent_name][0] = Image.fromarray(new_icon)
     return last_icons
