@@ -795,7 +795,7 @@ def pkl2city_imgs(cached_observation, vis_dataset, world_idx, icon_dir_dict, out
     time_steps = list(obs.keys())
     time_steps.sort()
 
-    icon_dict = get_random_icon_dict(icon_dir_dict) # sample icon from icon lib
+    icon_dict = get_random_icon_dict(icon_dir_dict, True) # sample icon from icon lib
 
     static_map = gridmap2img_static(obs[time_steps[0]]["World"].numpy(), icon_dict, ego_id)
     # static_map_img.save("{}/static_layout.png".format(output_folder))
@@ -824,7 +824,7 @@ def pkl2city_imgs(cached_observation, vis_dataset, world_idx, icon_dir_dict, out
 
     return vis_dataset
 
-def get_random_icon_dict(icon_dir_dict):
+def get_random_icon_dict(icon_dir_dict, static = False):
     icon_dict = {}
     print("Generating random icons for each agent type...")
     s = time.time()
@@ -832,19 +832,22 @@ def get_random_icon_dict(icon_dir_dict):
         icon_dir_path = icon_dir_dict[key]["icon_dir_path"]
         icon_num = icon_dir_dict[key]["icon_num"]
         if key in ["House", "Office", "Store", "Gas Station", "Garage"]:
-            icon_path_list = []
-            for _ in range(10):
-                icon_idx = np.random.choice(icon_num)
-                # option 1 (faster, for imgs with formulated names)
-                # icon_path_list.append(os.path.join(icon_dir_path, "image_{}.png".format(icon_idx)))
-                # option 2 (slower, for imgs with random names)
-                icon_path_list.append(os.path.join(icon_dir_path, os.listdir(icon_dir_path)[icon_idx]))
-            raw_img = [remove_background_alpha_channel(path) for path in icon_path_list]
-            resized_img = [resize_with_aspect_ratio(img, ICON_SIZE_DICT[key]) for img in raw_img]
-            icon_dict[key] = resized_img
+            if static:
+                icon_path_list = []
+                for _ in range(10):
+                    icon_idx = np.random.choice(icon_num)
+                    # option 1 (faster, for imgs with formulated names)
+                    # icon_path_list.append(os.path.join(icon_dir_path, "image_{}.png".format(icon_idx)))
+                    # option 2 (slower, for imgs with random names)
+                    icon_path_list.append(os.path.join(icon_dir_path, os.listdir(icon_dir_path)[icon_idx]))
+                raw_img = [remove_background_alpha_channel(path) for path in icon_path_list]
+                resized_img = [resize_with_aspect_ratio(img, ICON_SIZE_DICT[key]) for img in raw_img]
+                icon_dict[key] = resized_img
+            else:
+                icon_dict[key] = [None]
         elif key in ["Car", "Pedestrian", "Ambulance", "Bus", "Tiro", "Police", "Reckless", "Pedestrian_old", "Pedestrian_young"]:
             icon_path_list = []
-            for _ in range(5):
+            for _ in range(3):
                 icon_idx = np.random.choice(icon_num)
                 # option 1 (faster, for imgs with formulated names)
                 # icon_path_list.append(os.path.join(icon_dir_path, "image_{}.png".format(icon_idx)))
@@ -853,17 +856,17 @@ def get_random_icon_dict(icon_dir_dict):
             raw_img = [remove_background_alpha_channel(path) for path in icon_path_list]
             resized_img = [resize_with_aspect_ratio(img, ICON_SIZE_DICT[key]) for img in raw_img]
             # check and convert [255, 255, 255] to [0, 0, 0]
-
             icon_dict[key] = resized_img
         else:
-            icon_idx = np.random.choice(icon_num)
-            # option 1 (faster, for imgs with formulated names)
-            # icon_path = os.path.join(icon_dir_path, "image_{}.png".format(icon_idx))
-            # option 2 (slower, for imgs with random names)
-            icon_path = os.path.join(icon_dir_path, os.listdir(icon_dir_path)[icon_idx])
-            raw_img = cv2.cvtColor(cv2.imread(icon_path), cv2.COLOR_BGR2RGB)
-            resized_img = resize_with_aspect_ratio(raw_img, ICON_SIZE_DICT[key])
-            icon_dict[key] = resized_img
+            if static:
+                icon_idx = np.random.choice(icon_num)
+                # option 1 (faster, for imgs with formulated names)
+                # icon_path = os.path.join(icon_dir_path, "image_{}.png".format(icon_idx))
+                # option 2 (slower, for imgs with random names)
+                icon_path = os.path.join(icon_dir_path, os.listdir(icon_dir_path)[icon_idx])
+                raw_img = cv2.cvtColor(cv2.imread(icon_path), cv2.COLOR_BGR2RGB)
+                resized_img = resize_with_aspect_ratio(raw_img, ICON_SIZE_DICT[key])
+                icon_dict[key] = resized_img
     e = time.time()
     print("Time taken to generate random icons: {:.2f}s".format(e-s))
     return icon_dict
@@ -871,6 +874,7 @@ def get_random_icon_dict(icon_dir_dict):
 def remove_background_alpha_channel(image_path):
     # Read the image
     image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED) # Make sure to read the alpha channel if present
+    assert image is not None, "Image not found at path: {}".format(image_path)
     if image.shape[2] == 4:  # Check if there is an alpha channel
         # Use the alpha channel as a mask to set background pixels to black
         # Here we assume background is where alpha value is 0

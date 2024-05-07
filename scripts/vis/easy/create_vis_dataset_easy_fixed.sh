@@ -20,5 +20,5 @@ python3 main.py \
         --val_world_num 20 \
         --test_world_num 20 \
         --dataset_dir vis_dataset/${EXPNAME} \
-        --max_steps 65 \
+        --max_steps 100 \
         --create_vis_dataset
