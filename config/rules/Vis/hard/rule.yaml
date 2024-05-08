@@ -61,6 +61,12 @@ Rules:
             ),
             And(
               Not(Stop(entity)), 
+              Not(IsAmbulance(entity)),
+              Not(IsReckless(entity)),
+              IsPolice(dummyEntityA)
+            ),
+            And(
+              Not(Stop(entity)), 
               IsPolice(entity),
               IsYoung(dummyEntityA),
               IsYoung(dummyEntityB),
