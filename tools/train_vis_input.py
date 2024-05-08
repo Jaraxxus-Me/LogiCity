@@ -25,7 +25,7 @@ class FocalLoss(nn.Module):
 def get_parser():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=str, default='config/tasks/Vis/ResNetNLM/easy_200_fixed_modular.yaml', help='Path to the config file.')
-    parser.add_argument("--exp", type=str, default='resnet_gnn_e2e')
+    parser.add_argument("--exp", type=str, default='resnet_nlm_modular')
     parser.add_argument("--modular", action='store_true', help='Train the model in a modular style.')
     parser.add_argument('--only_supervise_car', default=True, help='Only supervise the car actions.')
     parser.add_argument('--add_concept_loss', default=True, help='Only supervise the car actions.')

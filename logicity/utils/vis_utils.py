@@ -56,7 +56,7 @@ def build_data_loader(data_config, test=False):
         val_vis_dataset_path = os.path.join(vis_dataset_path, "val/val_{}.pkl".format(dataset_name))
 
         train_dataset = VisDataset(train_vis_dataset_path, debug=debug)
-        train_dataloader = DataLoader(train_dataset, batch_size=bs, shuffle=True)
+        train_dataloader = DataLoader(train_dataset, batch_size=bs, shuffle=True, num_workers=4)
         val_dataset = VisDataset(val_vis_dataset_path)
         val_dataloader = DataLoader(val_dataset, batch_size=1)
         return train_dataset, val_dataset, train_dataloader, val_dataloader

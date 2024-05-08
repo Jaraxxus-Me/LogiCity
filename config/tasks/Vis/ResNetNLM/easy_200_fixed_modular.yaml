@@ -1,6 +1,6 @@
 Data:
-  dataset_name: easy_200_fixed
-  data_path: vis_dataset/easy_200_fixed
+  dataset_name: easy_fixed_final
+  data_path: vis_dataset/easy_fixed_final
   mode: easy
   batch_size: 2
   debug: false

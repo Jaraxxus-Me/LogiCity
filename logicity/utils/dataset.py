@@ -69,7 +69,7 @@ class VisDataset(torch.utils.data.Dataset):
         self.gt_vis = gt_vis
         with open(vis_dataset_path, "rb") as f:
             self.vis_dataset = pkl.load(f)
-        self.vis_dataset_list = list(self.vis_dataset.keys())
+        self.vis_dataset_list = self.filter(list(self.vis_dataset.keys()))
         if debug:
             self.vis_dataset_list = self.vis_dataset_list[:100]
         self.data_size = len(self.vis_dataset_list)
@@ -80,6 +80,14 @@ class VisDataset(torch.utils.data.Dataset):
             "down": [0, 0, 0, 1],
             "none": [0, 0, 0, 0],
         }
+
+    def filter(self, data_list):
+        new_data_list = []
+        for data in data_list:
+            step = int(data.split('_')[1][4:])
+            if step > 10:
+                new_data_list.append(data)
+        return new_data_list
 
     def read_img(self, filepath):
         img = Image.open(filepath)
