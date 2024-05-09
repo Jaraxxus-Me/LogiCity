@@ -1,7 +1,9 @@
 import os
 import torch
 import numpy as np
+
 from torch.utils.data import DataLoader
+from torch.utils.data.dataloader import default_collate
 from logicity.utils.dataset import VisDataset
 
 
@@ -9,6 +11,8 @@ def CPU(x):
     return x.detach().cpu().numpy() if isinstance(x, torch.Tensor) else x
 
 def CUDA(x):
+    if isinstance(x, list):
+        return [sample.cuda() for sample in x]
     return x.cuda()
 
 def compute_action_acc(pred, label):
@@ -29,22 +33,15 @@ def compute_action_acc(pred, label):
     return acc, [slow_correct_num, slow_gt_num, normal_correct_num, normal_gt_num, \
             fast_correct_num, fast_gt_num, stop_correct_num, stop_gt_num]
 
-def compute_concept_acc(pred, label):
-    pred = CPU(pred)
-    label = CPU(label)
-    concept_num = label.shape[-1]
-    pred = pred > 0.5
-    label = label > 0.5
-    acc = np.sum((pred == label)&label) / np.sum(label)
+def collate_fn(batch):
+    batched_data = {}
+    for key in batch[0].keys():
+        if key == 'edge_index':
+            batched_data[key] = [sample[key] for sample in batch]
+        else:
+            batched_data[key] = default_collate([item[key] for item in batch])
 
-    concept_num_list = [[], []]
-    for i in range(concept_num):
-        correct_num = np.sum(((pred == label)&label)[..., i])
-        gt_num = np.sum(label[..., i])
-        concept_num_list[0].append(correct_num)
-        concept_num_list[1].append(gt_num)
-
-    return acc, concept_num_list
+    return batched_data
 
 def build_data_loader(data_config, test=False):
     vis_dataset_path = data_config['data_path']
@@ -56,14 +53,14 @@ def build_data_loader(data_config, test=False):
         val_vis_dataset_path = os.path.join(vis_dataset_path, "val/val_{}.pkl".format(dataset_name))
 
         train_dataset = VisDataset(train_vis_dataset_path, debug=debug)
-        train_dataloader = DataLoader(train_dataset, batch_size=bs, shuffle=True, num_workers=4)
+        train_dataloader = DataLoader(train_dataset, batch_size=bs, shuffle=True, collate_fn=collate_fn, num_workers=4)
         val_dataset = VisDataset(val_vis_dataset_path)
-        val_dataloader = DataLoader(val_dataset, batch_size=1)
+        val_dataloader = DataLoader(val_dataset, batch_size=bs, collate_fn=collate_fn)
         return train_dataset, val_dataset, train_dataloader, val_dataloader
     else:
         test_vis_dataset_path = os.path.join(vis_dataset_path, "test/test_{}.pkl".format(dataset_name))
         test_dataset = VisDataset(test_vis_dataset_path)
-        test_dataloader = DataLoader(test_dataset, batch_size=1)
+        test_dataloader = DataLoader(test_dataset, batch_size=bs, collate_fn=collate_fn)
         return test_dataset, test_dataloader
 
 def build_optimizer(params, opt_config):

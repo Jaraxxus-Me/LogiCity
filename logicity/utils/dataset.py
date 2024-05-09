@@ -5,7 +5,6 @@ from PIL import Image, ImageDraw, ImageFont
 import os
 import cv2
 
-
 # data loader class for data buffer inherited from torch.utils.data.Dataset
 class WMDataset(torch.utils.data.Dataset):
     def __init__(self, data_buffer, batch_size=256, shuffle=True):
@@ -170,23 +169,20 @@ class VisDataset(torch.utils.data.Dataset):
         unary_list = []
         binary_list = []
         for k, v in predicates.items():
+            if k == "Sees":
+                continue
             if len(v.shape) == 1:
                 unary_list.append(v)
             elif len(v.shape) == 2:
-                binary_list.append(v)
+                binary_list.append(v)        
         predicates_tensor_dict["unary"] = torch.stack(unary_list, dim=-1).to(torch.float)
         N = len(next_actions)
         binary_predicates_tensor = torch.stack(binary_list, dim=-1)
         binary_predicates_tensor = binary_predicates_tensor.to(torch.float)
-        # bin_C = binary_predicates_tensor.shape[-1]
-        # binary_predicates_tensor_compressed = torch.zeros(N, N-1, bin_C).to(torch.bool)
-        # upper_idxs = torch.triu_indices(N, N, offset=1)
-        # lower_idxs = torch.tril_indices(N, N, offset=-1)
-        # binary_predicates_tensor_compressed[upper_idxs[0], upper_idxs[1]-1] = \
-        #     binary_predicates_tensor[upper_idxs[0], upper_idxs[1]]
-        # binary_predicates_tensor_compressed[lower_idxs[0], lower_idxs[1]] = \
-        #     binary_predicates_tensor[lower_idxs[0], lower_idxs[1]]
         predicates_tensor_dict["binary"] = binary_predicates_tensor
+
+        sees_matrix = predicates["Sees"]
+        edge_index = torch.tensor([(j, i) for i in range(sees_matrix.size(0)) for j in range(sees_matrix.size(1)) if i != j and sees_matrix[i][j] == 1], dtype=torch.long).t()
 
         bboxes = torch.Tensor(np.array(bboxes))
         priorities = torch.Tensor(np.array(priorities))
@@ -211,9 +207,11 @@ class VisDataset(torch.utils.data.Dataset):
             "priorities": priorities,
             "directions": directions,
             "next_actions": next_actions,
+            "edge_index": edge_index
         }
 
         return out_dict
+
 
 if __name__ == '__main__': 
     import joblib

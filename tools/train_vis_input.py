@@ -3,12 +3,10 @@ import torch
 import torch.nn as nn
 import argparse
 from tqdm import tqdm
-import wandb
+# import wandb
 import yaml
 import os
-from logicity.utils.dataset import VisDataset
 from logicity.utils.vis_utils import CPU, CUDA, build_data_loader, compute_action_acc, build_optimizer
-from torch.utils.data import DataLoader
 from logicity.predictor import MODEL_BUILDER
 
 class FocalLoss(nn.Module):
@@ -31,6 +29,21 @@ def get_parser():
     parser.add_argument('--add_concept_loss', default=True, help='Only supervise the car actions.')
     return parser.parse_args()
 
+
+def get_gt_binary_concepts(batch_relation_matrix, batch_edge_index):
+    gt_binary_concepts = []
+
+    for b in range(len(batch_relation_matrix)):
+        relation_matrix = batch_relation_matrix[b]
+        src_nodes, dst_nodes = batch_edge_index[b]
+        for src, dst in zip(src_nodes, dst_nodes):
+            gt_binary_concepts.append(relation_matrix[dst, src])
+
+    gt_binary_concepts_tensor = torch.stack(gt_binary_concepts, dim=0)
+
+    return gt_binary_concepts_tensor
+
+
 def train_modular(args):
     config = yaml.load(open(args.config, 'r'), Loader=yaml.Loader)
     data_config = config['Data']
@@ -41,22 +54,21 @@ def train_modular(args):
     model = CUDA(model)
 
     grounding_opt_config = config["Optimizer"]["grounding"]
-    grounding_params = list(model.node_concept_predictor.parameters()) + \
-                        list(model.edge_predictor.parameters())
-    grounding_optimizer = build_optimizer(grounding_params, grounding_opt_config)
-    reasoning_opt_config = config["Optimizer"]["reasoning"]
-    reasoning_optimizer = build_optimizer(model.reasoning_engine.parameters(), reasoning_opt_config)
+    grounding_optimizer = build_optimizer(model.grounding_net.parameters(), grounding_opt_config)
 
-    wandb.init(
-        project = "logicity_vis_input",
-        name = "{}_{}".format(args.exp, config['Data']['mode']),
-        config = config,
-    )
+    reasoning_opt_config = config["Optimizer"]["reasoning"]
+    reasoning_optimizer = build_optimizer(model.reasoning_net.parameters(), reasoning_opt_config)
+
+    # wandb.init(
+    #     project = "logicity_vis_input",
+    #     name = "{}_{}".format(args.exp, config['Data']['mode']),
+    #     config = config,
+    # )
 
     loss_ce = nn.CrossEntropyLoss()
     loss_bce = nn.BCELoss()
 
-    wandb.watch(model)
+    # wandb.watch(model)
     best_acc = -1
     epochs = config['Optimizer']['epochs']
     for epoch in range(epochs):
@@ -66,17 +78,16 @@ def train_modular(args):
         action_total = [0, 0, 0, 0, 0, 0, 0, 0]
 
         iter_num = 0
+        model.train()
         for batch in tqdm(train_dataloader):
             gt_actions = CUDA(batch["next_actions"])
-            gt_unary_concepts = CUDA(batch["predicates"]["unary"])
-            gt_binary_concepts = CUDA(batch["predicates"]["binary"])
-            # TODO: for zhaoyu, gt_binary_concepts[:, -1] is the concept of "sees", use 11x10 matrix to represent the edge
-            pred_unary_concepts, pred_binary_concepts = model.pred_concepts(CUDA(batch["img"]), CUDA(batch["bboxes"]), CUDA(batch["directions"]), CUDA(batch["priorities"]))
-            # cut the gradient for nlm here
-            pred_unary_concepts_nlm = pred_unary_concepts.detach()
-            pred_binary_concepts_nlm = pred_binary_concepts.detach()
+            gt_unary_concepts = CUDA(batch["predicates"]["unary"]) # B x N x 8
+            gt_binary_concepts = CUDA(get_gt_binary_concepts(batch["predicates"]["binary"], batch["edge_index"])) # |E| x 3
 
-            pred_actions = model.reason(pred_unary_concepts_nlm, pred_binary_concepts_nlm)
+            pred_unary_concepts, pred_binary_concepts = model.grounding(CUDA(batch["img"]), CUDA(batch["bboxes"]), CUDA(batch["directions"]), CUDA(batch["priorities"]), CUDA(batch["edge_index"]))
+            sliced_edge_concepts = model.create_sliced_edge_concepts(gt_binary_concepts, CUDA(batch["edge_index"]))
+            batch_graph = model.create_batch_graph(gt_unary_concepts, sliced_edge_concepts, CUDA(batch["edge_index"])) 
+            pred_actions = model.reasoning(batch_graph)
             
             if args.only_supervise_car:
                 is_car_mask = CUDA(batch["car_mask"])
@@ -115,15 +126,24 @@ def train_modular(args):
 
             iter_num += 1
             # validation
+            model.eval()
             if iter_num % len(train_dataloader) == 0 and (not data_config["debug"]):    
                 # evaluate the accuracy and loss on val set
                 with torch.no_grad():
                     val_action_total = [0, 0, 0, 0, 0, 0, 0, 0]
                     for batch in tqdm(val_dataloader):
                         gt_actions = CUDA(batch["next_actions"])
-                        gt_unary_concepts = CUDA(batch["predicates"]["unary"])
-                        gt_binary_concepts = CUDA(batch["predicates"]["binary"])
-                        pred_actions, pred_unary_concepts, pred_binary_concepts = model(CUDA(batch["img"]), CUDA(batch["bboxes"]), CUDA(batch["directions"]), CUDA(batch["priorities"]))
+                        gt_unary_concepts = CUDA(batch["predicates"]["unary"]) # B x N x 8
+                        gt_binary_concepts = CUDA(get_gt_binary_concepts(batch["predicates"]["binary"], batch["edge_index"])) # |E| x 3
+
+                        pred_unary_concepts, pred_binary_concepts = model.grounding(CUDA(batch["img"]), CUDA(batch["bboxes"]), CUDA(batch["directions"]), CUDA(batch["priorities"]), CUDA(batch["edge_index"]))
+                        
+                        pred_round_unary_concepts = (pred_unary_concepts > 0.5).float()
+                        pred_round_binary_concepts = (pred_binary_concepts > 0.5).float()
+
+                        sliced_edge_concepts = model.create_sliced_edge_concepts(pred_round_binary_concepts, CUDA(batch["edge_index"]))
+                        batch_graph = model.create_batch_graph(pred_round_unary_concepts, sliced_edge_concepts, CUDA(batch["edge_index"])) 
+                        pred_actions = model.reasoning(batch_graph)
                         
                         if args.only_supervise_car:
                             is_car_mask = CUDA(batch["car_mask"])
@@ -175,7 +195,7 @@ def train_modular(args):
                 print("Stop: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(val_action_total[6], val_action_total[7], val_stop_acc))
                 print("Action Weighted Acc: {:.4f}".format(val_action_weighted_acc))
                 
-                wandb.log({
+                print({
                     'iter': epoch*len(train_dataloader) + iter_num,
                     'loss_val': loss_val,
                     'acc_val': acc_val,
@@ -206,7 +226,7 @@ def train_modular(args):
         print("Stop: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(action_total[6], action_total[7], stop_acc))
         print("Action Weighted Acc: {:.4f}".format(action_weighted_acc))
 
-        wandb.log({
+        print({
             'epoch': epoch,
             'learning rate (grounding)': grounding_optimizer.state_dict()['param_groups'][0]['lr'],
             'learning rate (reasoning)': reasoning_optimizer.state_dict()['param_groups'][0]['lr'],
@@ -236,7 +256,7 @@ def train_modular(args):
                 'loss': loss_val,
             }, "vis_input_weights/{}/{}/{}_best.pth".format(config['Data']['mode'], args.exp, args.exp))
 
-    wandb.finish()
+    # wandb.finish()
 
 def train_e2e(args):
     config = yaml.load(open(args.config, 'r'), Loader=yaml.Loader)
@@ -249,21 +269,17 @@ def train_e2e(args):
 
     assert "whole" in config["Optimizer"], "The whole model should be optimized e2e."
     whole_opt_config = config["Optimizer"]["whole"]
-    whole_params = list(model.node_concept_predictor.parameters()) + \
-                        list(model.edge_predictor.parameters()) + \
-                        list(model.reasoning_engine.parameters())
-    whole_optimizer = build_optimizer(whole_params, whole_opt_config)
+    parameters = model.parameters()
+    optimizer = build_optimizer(parameters, whole_opt_config)
 
-    wandb.init(
-        project = "logicity_vis_input",
-        name = "{}_{}".format(args.exp, config['Data']['mode']),
-        config = config,
-    )
+    # wandb.init(
+    #     project = "logicity_vis_input",
+    #     name = "{}_{}".format(args.exp, config['Data']['mode']),
+    #     config = config,
+    # )
 
     loss_ce = nn.CrossEntropyLoss()
-    loss_bce = nn.BCELoss()
-
-    wandb.watch(model)
+    # wandb.watch(model)
     best_acc = -1
     epochs = config['Optimizer']['epochs']
     for epoch in range(epochs):
@@ -273,14 +289,11 @@ def train_e2e(args):
         action_total = [0, 0, 0, 0, 0, 0, 0, 0]
 
         iter_num = 0
+        model.train()
         for batch in tqdm(train_dataloader):
             gt_actions = CUDA(batch["next_actions"])
-            gt_unary_concepts = CUDA(batch["predicates"]["unary"])
-            gt_binary_concepts = CUDA(batch["predicates"]["binary"])
-            # TODO: for zhaoyu, gt_binary_concepts[:, -1] is the concept of "sees", use 11x10 matrix to represent the edge
-            pred_unary_concepts, pred_binary_concepts = model.pred_concepts(CUDA(batch["img"]), CUDA(batch["bboxes"]), CUDA(batch["directions"]), CUDA(batch["priorities"]))
-            pred_actions = model.reason(pred_unary_concepts, pred_binary_concepts)
-            
+            pred_actions = model(CUDA(batch["img"]), CUDA(batch["bboxes"]), CUDA(batch["directions"]), CUDA(batch["priorities"]), CUDA(batch["edge_index"]))
+
             if args.only_supervise_car:
                 is_car_mask = CUDA(batch["car_mask"])
                 car_gt_num = torch.sum(is_car_mask)
@@ -297,13 +310,9 @@ def train_e2e(args):
             else:
                 loss_actions = loss_ce(pred_actions.reshape(-1, 4), gt_actions.reshape(-1))
             
-            # if args.add_concept_loss:
-            #     loss_concepts = loss_bce(pred_unary_concepts.reshape(-1), gt_unary_concepts.reshape(-1)) \
-            #                     + loss_bce(pred_binary_concepts.reshape(-1), gt_binary_concepts.reshape(-1))
-            
-            whole_optimizer.zero_grad()
+            optimizer.zero_grad()
             loss_actions.backward()
-            whole_optimizer.step()
+            optimizer.step()
 
             loss_train_actions += loss_actions.item()
             acc, action_results_list = compute_action_acc(pred_actions, gt_actions)
@@ -313,15 +322,14 @@ def train_e2e(args):
 
             iter_num += 1
             # validation
+            model.eval()
             if iter_num % len(train_dataloader) == 0 and (not data_config["debug"]):    
                 # evaluate the accuracy and loss on val set
                 with torch.no_grad():
                     val_action_total = [0, 0, 0, 0, 0, 0, 0, 0]
                     for batch in tqdm(val_dataloader):
                         gt_actions = CUDA(batch["next_actions"])
-                        gt_unary_concepts = CUDA(batch["predicates"]["unary"])
-                        gt_binary_concepts = CUDA(batch["predicates"]["binary"])
-                        pred_actions, pred_unary_concepts, pred_binary_concepts = model(CUDA(batch["img"]), CUDA(batch["bboxes"]), CUDA(batch["directions"]), CUDA(batch["priorities"]))
+                        pred_actions = model(CUDA(batch["img"]), CUDA(batch["bboxes"]), CUDA(batch["directions"]), CUDA(batch["priorities"]), CUDA(batch["edge_index"]))
                         
                         if args.only_supervise_car:
                             is_car_mask = CUDA(batch["car_mask"])
@@ -339,9 +347,6 @@ def train_e2e(args):
                         else:
                             loss_actions = loss_ce(pred_actions, gt_actions)
                         loss = loss_actions
-                        # loss_concepts = loss_bce(pred_unary_concepts, gt_unary_concepts) \
-                        #                 + loss_bce(pred_binary_concepts, gt_binary_concepts)
-                        # loss += loss_concepts
                         loss_val += loss.item()
                         acc, val_action_results_list = compute_action_acc(pred_actions, gt_actions)
                         acc_val += acc
@@ -372,7 +377,7 @@ def train_e2e(args):
                 print("Stop: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(val_action_total[6], val_action_total[7], val_stop_acc))
                 print("Action Weighted Acc: {:.4f}".format(val_action_weighted_acc))
                 
-                wandb.log({
+                print({
                     'iter': epoch*len(train_dataloader) + iter_num,
                     'loss_val': loss_val,
                     'acc_val': acc_val,
@@ -402,9 +407,9 @@ def train_e2e(args):
         print("Stop: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(action_total[6], action_total[7], stop_acc))
         print("Action Weighted Acc: {:.4f}".format(action_weighted_acc))
 
-        wandb.log({
+        print({
             'epoch': epoch,
-            'learning rate': whole_optimizer.state_dict()['param_groups'][0]['lr'],
+            'learning rate': optimizer.state_dict()['param_groups'][0]['lr'],
             'loss_train_concept': loss_train_concepts,
             'loss_train_action': loss_train_actions,
             'acc_train': acc_train,
@@ -417,7 +422,7 @@ def train_e2e(args):
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': whole_optimizer.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
                 'loss': loss_val,
             }, "vis_input_weights/{}/{}/{}_epoch{}_valacc{:.4f}.pth".format(config['Data']['mode'], args.exp, args.exp, epoch, val_action_weighted_acc))
             if best_acc < val_action_weighted_acc:
@@ -425,16 +430,16 @@ def train_e2e(args):
                 torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': whole_optimizer.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
                 'loss': loss_val,
             }, "vis_input_weights/{}/{}/{}_best.pth".format(config['Data']['mode'], args.exp, args.exp))
 
-    wandb.finish()
+    # wandb.finish()
 
 if __name__ == "__main__":
     args = get_parser()
-    os.environ['WANDB__SERVICE_WAIT'] = "300"
-    os.environ['WANDB_API_KEY'] = 'f510977768bfee8889d74a65884aeec5f45a578f'
+    # os.environ['WANDB__SERVICE_WAIT'] = "300"
+    # os.environ['WANDB_API_KEY'] = 'f510977768bfee8889d74a65884aeec5f45a578f'
     if args.modular:
         train_modular(args)
     else:
