@@ -30,6 +30,45 @@ class NLM(nn.Module):
     return pred
 
 
+def get_nlm_binary_concepts(batch_relation_matrix, batch_edge_index):
+    B, N, N, R = batch_relation_matrix.shape
+    gt_binary_concepts = torch.zeros((B, N, N, N, R)).to(batch_relation_matrix.device)
+
+    for b in range(len(batch_edge_index)):
+        edge_index = batch_edge_index[b]
+        edge_dict = edge_index2dict(edge_index, N)
+        for n in range(N):
+            see_ent = edge_dict[n]
+            for i, i_ in enumerate(see_ent):
+                for j, j_ in enumerate(see_ent):
+                    gt_binary_concepts[b, n, i, j] = batch_relation_matrix[b, i_, j_]
+
+    return gt_binary_concepts.reshape(B*N, N, N, R)
+
+def get_nlm_unary_concepts(batch_unary_concepts, batch_edge_index):
+    B, N, U = batch_unary_concepts.shape
+    gt_unary_concepts = torch.zeros((B, N, N, U)).to(batch_unary_concepts.device)
+
+    for b in range(len(batch_edge_index)):
+        edge_index = batch_edge_index[b]
+        edge_dict = edge_index2dict(edge_index, N)
+        for n in range(N):
+            see_ent = edge_dict[n]
+            gt_unary_concepts[b, n, :len(see_ent)] = batch_unary_concepts[b, see_ent]
+
+    return gt_unary_concepts.reshape(B*N, N, U)
+
+def edge_index2dict(edge_index, num_nodes):
+    edge_dict = {}
+    for i, (src, dst) in enumerate(zip(edge_index[0], edge_index[1])):
+        if dst.item() not in edge_dict:
+            edge_dict[dst.item()] = [dst.item()]
+        edge_dict[dst.item()].append(src.item())
+    for n in range(num_nodes):
+        if n not in edge_dict:
+            edge_dict[n] = [n]
+    return edge_dict
+
 class ResNetNLM(nn.Module):
     def __init__(self, config, mode):
         super(ResNetNLM, self).__init__()
@@ -41,7 +80,6 @@ class ResNetNLM(nn.Module):
         nlm_args = config["nlm_args"]
         nlm_args["input_dims"] = [0, len(self.grounding_net.node_concept_names), \
                                   len(self.grounding_net.edge_concept_names), 0]
-        self.max_fov_ent = config["max_fov_ent"]
         self.reasoning_net = ReasoningNet(self.grounding_net.action_names, config["nlm_args"], \
                                                    config["nlm_arity"])
 
@@ -50,13 +88,21 @@ class ResNetNLM(nn.Module):
         node_concepts, edge_concepts = self.grounding_net(batch_imgs, batch_bboxes, batch_directions, \
                                                           batch_priorities, batch_edge_index)
         feed_dict = {
-            "n": torch.tensor([self.max_fov_ent]*(node_concepts.shape[0]*node_concepts.shape[1])), # [5] * (B*N)
+            "n": torch.tensor([node_concepts.shape[1]]*node_concepts.shape[0]), # [5] * (B*N)
             "states": node_concepts, # BN x 5 x C_node
             "relations": edge_concepts, # BN x 5 x 5 x (C_edge+1)
         }
         next_actions = self.reasoning_net(feed_dict)
         return next_actions
     
+    def grounding(self, batch_imgs, batch_bboxes, batch_directions, batch_priorities, batch_edge_index):
+        node_concepts, edge_concepts = self.grounding_net(batch_imgs, batch_bboxes, batch_directions, batch_priorities, batch_edge_index)
+        return node_concepts, edge_concepts
+    
+    def reasoning(self, feed_dict):
+        next_actions = self.reasoning_net(feed_dict)
+        return next_actions
+
 class GroundingNet(nn.Module):
     def __init__(self, config, mode):
         super(GroundingNet, self).__init__()
@@ -121,7 +167,7 @@ class GroundingNet(nn.Module):
             else:
                 assert predicate_name in self.action_names, "Unknown predicate name: {}".format(predicate_name)
 
-    def get_node_concepts(self, batch_imgs, batch_bboxes):
+    def get_node_concepts(self, batch_imgs, batch_bboxes, batch_edge_index):
         roi_features = self.feature_extractor(batch_imgs, batch_bboxes)
         B = roi_features.shape[0]
         N = roi_features.shape[1]
@@ -131,9 +177,12 @@ class GroundingNet(nn.Module):
         node_features = self.node_predictor(roi_features).reshape(B, N, -1)
         node_concepts = self.node_concept_interpreter(node_features) # B x N x C_node
 
+        node_concepts = get_nlm_unary_concepts(node_concepts, batch_edge_index)
+
         return node_concepts
     
     def get_edge_concepts(self, batch_bboxes, batch_directions, batch_priorities, batch_edge_index):
+        B, N = batch_bboxes.shape[:2]
         node_attributes = torch.cat([batch_bboxes/self.BBOX_POS_MAX, batch_directions, batch_priorities.unsqueeze(-1)], dim=-1) # B x N x (4+4+1)
         # 2. predict edge attributes
         node_attributes_paired = torch.zeros(B, N, N, 2*self.bbox_channels).to(node_attributes.device)
@@ -145,15 +194,18 @@ class GroundingNet(nn.Module):
         node_attributes_paired = torch.cat([node_attr_expanded, node_attr_tiled], dim=-1)
         node_attributes_paired = node_attributes_paired.view(-1, 2*self.bbox_channels)
         edge_features = self.edge_predictor(node_attributes_paired) # B x (N x N) x C_edge
-        edge_concepts = self.edge_concept_interpreter(edge_features)
+        edge_concepts = self.edge_concept_interpreter(edge_features).reshape(B, N, N, -1)
+
+        edge_concepts = get_nlm_binary_concepts(edge_concepts, batch_edge_index)
 
         return edge_concepts
     
     def forward(self, batch_imgs, batch_bboxes, batch_directions, batch_priorities, batch_edge_index):
-        node_concepts = self.get_node_concepts(batch_imgs, batch_bboxes)
+        node_concepts = self.get_node_concepts(batch_imgs, batch_bboxes, batch_edge_index)
         edge_concepts = self.get_edge_concepts(batch_bboxes, batch_directions, batch_priorities, batch_edge_index)
 
         return node_concepts, edge_concepts
+    
     
 class ReasoningNet(nn.Module):
     def __init__(self, action_names, nlm_args, target_dim):
@@ -166,4 +218,6 @@ class ReasoningNet(nn.Module):
     
     def forward(self, feed_dict):
         next_actions = self.nlm(feed_dict)
+        # take ego agent action
+        next_actions = next_actions[:, 0, :]
         return next_actions

@@ -10,7 +10,6 @@ Model:
   ontology: config/rules/Vis/easy/ontology.yaml
   bbox_channels: 9
   BBOX_POS_MAX: 1024
-  max_fov_ent: 5
   node_predictor:
     hidden: [512, 256, 128]
   edge_predictor:

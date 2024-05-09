@@ -22,8 +22,8 @@ class FocalLoss(nn.Module):
 
 def get_parser():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=str, default='config/tasks/Vis/ResNetNLM/easy_200_fixed_e2e.yaml', help='Path to the config file.')
-    parser.add_argument("--exp", type=str, default='resnet_nlm_e2e')
+    parser.add_argument("--config", type=str, default='config/tasks/Vis/ResNetGNN/easy_200_fixed_modular.yaml', help='Path to the config file.')
+    parser.add_argument("--exp", type=str, default='resnet_gnn_modular')
     parser.add_argument("--modular", action='store_true', help='Train the model in a modular style.')
     parser.add_argument('--only_supervise_car', default=True, help='Only supervise the car actions.')
     parser.add_argument('--add_concept_loss', default=True, help='Only supervise the car actions.')
@@ -236,7 +236,7 @@ def train_modular(args):
             'acc_train_weighted': action_weighted_acc,
         })
 
-        if (epoch + 1) % 2 == 0 and (not data_config["debug"]):    
+        if (not data_config["debug"]):    
             if not os.path.exists("vis_input_weights/{}/{}".format(config['Data']['mode'], args.exp)):
                 os.makedirs("vis_input_weights/{}/{}".format(config['Data']['mode'], args.exp))
             torch.save({
@@ -440,6 +440,7 @@ if __name__ == "__main__":
     args = get_parser()
     # os.environ['WANDB__SERVICE_WAIT'] = "300"
     # os.environ['WANDB_API_KEY'] = 'f510977768bfee8889d74a65884aeec5f45a578f'
+    assert "GNN" in args.config, "The config file should be a GNN-based model. For NLM, use train_vis_input_nlm.py"
     if args.modular:
         train_modular(args)
     else:
