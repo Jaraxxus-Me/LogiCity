@@ -22,8 +22,8 @@ class FocalLoss(nn.Module):
 
 def get_parser():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=str, default='config/tasks/Vis/ResNetNLM/easy_200_fixed_modular.yaml', help='Path to the config file.')
-    parser.add_argument("--exp", type=str, default='resnet_nlm_modular')
+    parser.add_argument("--config", type=str, default='config/tasks/Vis/ResNetNLM/easy_200_fixed_e2e.yaml', help='Path to the config file.')
+    parser.add_argument("--exp", type=str, default='resnet_nlm_e2e')
     parser.add_argument("--modular", action='store_true', help='Train the model in a modular style.')
     parser.add_argument('--only_supervise_car', default=True, help='Only supervise the car actions.')
     parser.add_argument('--add_concept_loss', default=True, help='Only supervise the car actions.')
@@ -416,7 +416,7 @@ def train_e2e(args):
             'acc_train_weighted': action_weighted_acc,
         })
 
-        if (epoch + 1) % 2 == 0 and (not data_config["debug"]):    
+        if (not data_config["debug"]):    
             if not os.path.exists("vis_input_weights/{}/{}".format(config['Data']['mode'], args.exp)):
                 os.makedirs("vis_input_weights/{}/{}".format(config['Data']['mode'], args.exp))
             torch.save({

@@ -1,6 +1,6 @@
 Data:
-  dataset_name: easy_200_fixed
-  data_path: vis_dataset/easy_200_fixed
+  dataset_name: easy_fixed_final
+  data_path: vis_dataset/easy_fixed_final
   mode: easy
   batch_size: 2
   debug: false
@@ -10,10 +10,11 @@ Model:
   ontology: config/rules/Vis/easy/ontology.yaml
   bbox_channels: 9
   BBOX_POS_MAX: 1024
+  max_fov_ent: 5
   node_predictor:
-    hidden: [512, 256]
+    hidden: [512, 256, 128]
   edge_predictor:
-    hidden: [256, 64]
+    hidden: [128, 128]
   nlm_args:
     output_dims: 8
     logic_hidden_dim: []

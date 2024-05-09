@@ -29,36 +29,49 @@ class NLM(nn.Module):
     pred = self.pred(feature)
     return pred
 
-class NLMReasoningEngine(nn.Module):
-    def __init__(self, action_names, nlm_args, target_dim):
-        super(NLMReasoningEngine, self).__init__()
-
-        # Build action predictor
-        self.action_channels = len(action_names)
-        self.nlm_args = nlm_args
-        self.nlm = NLM(tgt_arity=target_dim, nlm_args=self.nlm_args, target_dim=self.action_channels)
-    
-    def forward(self, feed_dict):
-        next_actions = self.nlm(feed_dict)
-        return next_actions
-
 
 class ResNetNLM(nn.Module):
     def __init__(self, config, mode):
         super(ResNetNLM, self).__init__()
         
         # Build feature extractor
-        self.feature_extractor = LogicityFeatureExtractor()
+        self.grounding_net = GroundingNet(config, mode)
 
-        # Build node concept predictor
+        # Reasoning engine
+        nlm_args = config["nlm_args"]
+        nlm_args["input_dims"] = [0, len(self.grounding_net.node_concept_names), \
+                                  len(self.grounding_net.edge_concept_names), 0]
+        self.max_fov_ent = config["max_fov_ent"]
+        self.reasoning_net = ReasoningNet(self.grounding_net.action_names, config["nlm_args"], \
+                                                   config["nlm_arity"])
+
+
+    def forward(self, batch_imgs, batch_bboxes, batch_directions, batch_priorities, batch_edge_index):
+        node_concepts, edge_concepts = self.grounding_net(batch_imgs, batch_bboxes, batch_directions, \
+                                                          batch_priorities, batch_edge_index)
+        feed_dict = {
+            "n": torch.tensor([self.max_fov_ent]*(node_concepts.shape[0]*node_concepts.shape[1])), # [5] * (B*N)
+            "states": node_concepts, # BN x 5 x C_node
+            "relations": edge_concepts, # BN x 5 x 5 x (C_edge+1)
+        }
+        next_actions = self.reasoning_net(feed_dict)
+        return next_actions
+    
+class GroundingNet(nn.Module):
+    def __init__(self, config, mode):
+        super(GroundingNet, self).__init__()
         ontology_file = config["ontology"]
         self.mode = mode
         self.read_ontology(ontology_file)
 
-        self.node_channels = len(self.node_concept_names)
+        self.node_channels = len(self.node_concept_names) # 12
+        self.edge_channels = len(self.edge_concept_names) # 3
+        self.action_channels = len(self.action_names) # 4
+
+        self.feature_extractor = LogicityFeatureExtractor()
         node_pred_hidden = config["node_predictor"]["hidden"]
 
-        self.node_concept_predictor = nn.Sequential(
+        self.node_predictor = nn.Sequential(
             nn.Linear(self.feature_extractor.img_feature_channels, node_pred_hidden[0]),
             nn.BatchNorm1d(node_pred_hidden[0]),  # Batch normalization
             nn.ReLU(),
@@ -67,34 +80,31 @@ class ResNetNLM(nn.Module):
             nn.BatchNorm1d(node_pred_hidden[1]),
             nn.ReLU(),
             nn.Dropout(0.25),
-            nn.Linear(node_pred_hidden[1], self.node_channels),
+            nn.Linear(node_pred_hidden[1], node_pred_hidden[2]),
+            nn.ReLU(),
+        )
+        self.node_concept_interpreter = nn.Sequential(
+            nn.Linear(node_pred_hidden[2], self.node_channels),
             nn.Sigmoid(),
         )
 
-        # Build edge concept predictor
-        # node attributes used for edge prediction: bbox + direction + priority
         self.bbox_channels = config["bbox_channels"]
         self.BBOX_POS_MAX = config["BBOX_POS_MAX"]
-        self.edge_channels = len(self.edge_concept_names)
-        edge_pred_hidden = config["node_predictor"]["hidden"]
+        
+        edge_pred_hidden = config["edge_predictor"]["hidden"]
         self.edge_predictor = nn.Sequential(
             nn.Linear(2*self.bbox_channels, edge_pred_hidden[0]),
             nn.ReLU(),
             nn.Linear(edge_pred_hidden[0], edge_pred_hidden[1]),
             nn.ReLU(),
+        )
+
+        self.edge_concept_interpreter = nn.Sequential(
             nn.Linear(edge_pred_hidden[1], self.edge_channels),
             nn.Sigmoid(),
         )
 
-        # Reasoning engine
-        nlm_args = config["nlm_args"]
-        nlm_args["input_dims"] = [0, len(self.node_concept_names), len(self.edge_concept_names), 0]
-        self.reasoning_engine = NLMReasoningEngine(self.action_names, config["nlm_args"], \
-                                                   config["nlm_arity"])
-
-
     def read_ontology(self, ontology_file):
-
         assert self.mode in ["easy", "medium", "hard", "expert"]
         assert self.mode in ontology_file, "Ontology file does not contain mode: {}".format(self.mode)
         with open(ontology_file, 'r') as file:
@@ -110,31 +120,23 @@ class ResNetNLM(nn.Module):
                 self.edge_concept_names.append(predicate_name)
             else:
                 assert predicate_name in self.action_names, "Unknown predicate name: {}".format(predicate_name)
-            # additionally predict "Sees"
-        self.edge_concept_names.append("Sees")
 
-    def forward(self, batch_imgs, batch_bboxes, batch_directions, batch_priorities):
-        node_concepts, edge_attributes = self.pred_concepts(batch_imgs, batch_bboxes, batch_directions, batch_priorities)
-        next_actions = self.reason(node_concepts, edge_attributes)
-        return next_actions, node_concepts, edge_attributes
-
-    def pred_concepts(self, batch_imgs, batch_bboxes, batch_directions, batch_priorities):
+    def get_node_concepts(self, batch_imgs, batch_bboxes):
         roi_features = self.feature_extractor(batch_imgs, batch_bboxes)
-
-        # concept prediction
-        device = roi_features.device
         B = roi_features.shape[0]
         N = roi_features.shape[1]
 
-        # Predict node concepts
-        node_concepts = self.node_concept_predictor(roi_features.view(-1, self.feature_extractor.img_feature_channels)) # B x N x concept_num
-        node_concepts = node_concepts.view(B, N, -1)
+        roi_features = roi_features.view(B*N, -1)
         
-        # Create scene graph (node:(concept, bbox, direction, priority))
-        # 1. concat node attributes use for edge prediction (bbox, direction)
+        node_features = self.node_predictor(roi_features).reshape(B, N, -1)
+        node_concepts = self.node_concept_interpreter(node_features) # B x N x C_node
+
+        return node_concepts
+    
+    def get_edge_concepts(self, batch_bboxes, batch_directions, batch_priorities, batch_edge_index):
         node_attributes = torch.cat([batch_bboxes/self.BBOX_POS_MAX, batch_directions, batch_priorities.unsqueeze(-1)], dim=-1) # B x N x (4+4+1)
         # 2. predict edge attributes
-        node_attributes_paired = torch.zeros(B, N, N, 2*self.bbox_channels).to(device)
+        node_attributes_paired = torch.zeros(B, N, N, 2*self.bbox_channels).to(node_attributes.device)
         # pair node attributes
         node_attr_expanded = node_attributes.unsqueeze(2).expand(B, N, N, self.bbox_channels)
         node_attr_tiled = node_attributes.unsqueeze(1).expand(B, N, N, self.bbox_channels)
@@ -142,18 +144,26 @@ class ResNetNLM(nn.Module):
         # Concatenate along the last dimension to pair the attributes
         node_attributes_paired = torch.cat([node_attr_expanded, node_attr_tiled], dim=-1)
         node_attributes_paired = node_attributes_paired.view(-1, 2*self.bbox_channels)
-        edge_attributes = self.edge_predictor(node_attributes_paired) # B x (N x N) x C_edge
-        edge_attributes = edge_attributes.view(B, N, N, -1)
+        edge_features = self.edge_predictor(node_attributes_paired) # B x (N x N) x C_edge
+        edge_concepts = self.edge_concept_interpreter(edge_features)
 
-        return node_concepts, edge_attributes
+        return edge_concepts
     
-    def reason(self, node_concepts, edge_attributes):
-        # Predict actions
-        feed_dict = {
-            "n": torch.tensor([node_concepts.shape[1]]*node_concepts.shape[0]),
-            "states": node_concepts, # B x N x C_node
-            "relations": edge_attributes, # B x N x N x (C_edge+1)
-        }
-        next_actions = self.reasoning_engine(feed_dict)
+    def forward(self, batch_imgs, batch_bboxes, batch_directions, batch_priorities, batch_edge_index):
+        node_concepts = self.get_node_concepts(batch_imgs, batch_bboxes)
+        edge_concepts = self.get_edge_concepts(batch_bboxes, batch_directions, batch_priorities, batch_edge_index)
 
+        return node_concepts, edge_concepts
+    
+class ReasoningNet(nn.Module):
+    def __init__(self, action_names, nlm_args, target_dim):
+        super(ReasoningNet, self).__init__()
+
+        # Build action predictor
+        self.action_channels = len(action_names)
+        self.nlm_args = nlm_args
+        self.nlm = NLM(tgt_arity=target_dim, nlm_args=self.nlm_args, target_dim=self.action_channels)
+    
+    def forward(self, feed_dict):
+        next_actions = self.nlm(feed_dict)
         return next_actions
