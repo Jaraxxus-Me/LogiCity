@@ -324,91 +324,55 @@ def cal_step_metric(decision_step, succ_decision):
 
 def random_agents_generation(agent_num, priority_list, valid_concept_names, mode, stage):
     agents_list = []
-    if mode == "easy":
-        for agent_id in range(agent_num):
-            agent = {}
-            agent["id"] = agent_id
-            # 3 for normal cars, 2 for normal pedestrians
-            valid_concept_cnt = len(valid_concept_names)
-            choice_range = valid_concept_cnt + 3 + 2
-            concept_id = np.random.randint(choice_range)
-            if concept_id < valid_concept_cnt:
-                concept_name = valid_concept_names[concept_id]
-                agent["class"] = STATIC_UNARY_PREDICATE_NAME_DICT[concept_name]["class"]
-                agent["size"] = STATIC_UNARY_PREDICATE_NAME_DICT[concept_name]["size"]
-                agent["gplanner"] = STATIC_UNARY_PREDICATE_NAME_DICT[concept_name]["gplanner"]
-                agent["concepts"] = {}
-                agent["concepts"]["type"] = STATIC_UNARY_PREDICATE_NAME_DICT[concept_name]["type"]
-                agent["concepts"][STATIC_UNARY_PREDICATE_NAME_DICT[concept_name]["concept_name"]] = 1.0
-            elif concept_id >= valid_concept_cnt and concept_id < valid_concept_cnt + 3:
-                agent["class"] = "Private_car"
-                agent["size"] = 2
-                agent["gplanner"] = "A*vg"
-                agent["concepts"] = {}
-                agent["concepts"]["type"] = "Car"
-            else:
-                agent["class"] = "Pedestrian"
-                agent["size"] = 1
-                agent["gplanner"] = "A*"
-                agent["concepts"] = {}
-                agent["concepts"]["type"] = "Pedestrian"
-            if agent["concepts"]["type"] == "Pedestrian":
-                agent["concepts"]["priority"] = 0
-            else:
-                agent["concepts"]["priority"] = int(priority_list[0])
-                priority_list = np.delete(priority_list, 0)
-            agents_list.append(agent)
-
-    elif mode == "expert":
-        if stage != "test":
-            ped_num = np.random.randint(4, 7)
-        else:
-            ped_num = np.random.randint(8, 11)
-        # make sure we have 1 old, 2 young
-        agent_old_1 = {
-            "id": 0, "class": "Pedestrian", "size": 1, "gplanner": "A*",
-            "concepts": {"type": "Pedestrian", "priority": 0, "old": 1.0},
+    if stage != "test":
+        ped_num = np.random.randint(3, 5)
+    else:
+        ped_num = np.random.randint(5, 7)
+    # make sure we have 1 old, 2 young
+    agent_old_1 = {
+        "id": 0, "class": "Pedestrian", "size": 1, "gplanner": "A*",
+        "concepts": {"type": "Pedestrian", "priority": 0, "old": 1.0},
+    }
+    agent_young_1 = {
+        "id": 1, "class": "Pedestrian", "size": 1, "gplanner": "A*",
+        "concepts": {"type": "Pedestrian", "priority": 0, "young": 1.0},
+    }
+    agent_young_2 = {
+        "id": 2, "class": "Pedestrian", "size": 1, "gplanner": "A*",
+        "concepts": {"type": "Pedestrian", "priority": 0, "young": 1.0},
+    }
+    agents_list.append(agent_old_1)
+    agents_list.append(agent_young_1)
+    agents_list.append(agent_young_2)
+    # create random pedestrians, p(old):p(young):p(normal)=2:2:1
+    for i in range(ped_num-3):
+        agent = {
+            "id": 3+i, "class": "Pedestrian", "size": 1, "gplanner": "A*",
+            "concepts": {"type": "Pedestrian", "priority": 0},
         }
-        agent_young_1 = {
-            "id": 1, "class": "Pedestrian", "size": 1, "gplanner": "A*",
-            "concepts": {"type": "Pedestrian", "priority": 0, "young": 1.0},
+        tmp_id = np.random.randint(5)
+        if tmp_id in [0, 1]:
+            agent["concepts"]["old"] = 1.0
+        elif tmp_id in [2, 3]:
+            agent["concepts"]["young"] = 1.0
+        agents_list.append(agent)
+    # create random cars
+    concepts_dist = {
+        "concepts": ['ambulance', 'bus', 'police', 'reckless', 'tiro', 'normal'],
+        "prob": [0.18, 0.18, 0.18, 0.18, 0.18, 0.1],
+    }
+    car_num = agent_num - ped_num
+    for i in range(car_num):
+        agent = {
+            "id": ped_num+i, "class": "Private_car", "size": 2, "gplanner": "A*vg",
+            "concepts": {"type": "Car", "priority": int(priority_list[0])},
         }
-        agent_young_2 = {
-            "id": 2, "class": "Pedestrian", "size": 1, "gplanner": "A*",
-            "concepts": {"type": "Pedestrian", "priority": 0, "young": 1.0},
-        }
-        agents_list.append(agent_old_1)
-        agents_list.append(agent_young_1)
-        agents_list.append(agent_young_2)
-        # create random pedestrians, p(old):p(young):p(normal)=2:2:1
-        for i in range(ped_num-3):
-            agent = {
-                "id": 3+i, "class": "Pedestrian", "size": 1, "gplanner": "A*",
-                "concepts": {"type": "Pedestrian", "priority": 0},
-            }
-            tmp_id = np.random.randint(5)
-            if tmp_id in [0, 1]:
-                agent["concepts"]["old"] = 1.0
-            elif tmp_id in [2, 3]:
-                agent["concepts"]["young"] = 1.0
-            agents_list.append(agent)
-        # create random cars
-        concepts_dist = {
-            "concepts": ['ambulance', 'bus', 'police', 'reckless', 'tiro', 'normal'],
-            "prob": [0.18, 0.18, 0.18, 0.18, 0.18, 0.1],
-        }
-        car_num = agent_num - ped_num
-        for i in range(car_num):
-            agent = {
-                "id": ped_num+i, "class": "Private_car", "size": 2, "gplanner": "A*vg",
-                "concepts": {"type": "Car", "priority": int(priority_list[0])},
-            }
-            priority_list = np.delete(priority_list, 0)
-            import random
-            sample = random.choices(concepts_dist['concepts'], weights=concepts_dist['prob'], k=1)[0]
-            if sample != "normal":
-                agent["concepts"][sample] = 1.0
-            agents_list.append(agent)
+        priority_list = np.delete(priority_list, 0)
+        import random
+        sample = random.choices(concepts_dist['concepts'], weights=concepts_dist['prob'], k=1)[0]
+        if sample != "normal":
+            agent["concepts"][sample] = 1.0
+        agents_list.append(agent)
 
     return agents_list
 
