@@ -1,6 +1,6 @@
 Data:
-  dataset_name: hard_fixed_final
-  data_path: vis_dataset/hard_fixed_final
+  dataset_name: hard_random_final
+  data_path: vis_dataset/hard_random_final
   mode: hard
   batch_size: 2
   debug: false
@@ -26,13 +26,8 @@ Model:
   nlm_arity: 1
 Optimizer:
   epochs: 30
-  grounding:
-    type: Adam
-    lr: 0.001
-    weight_decay: 0.0001
-    scheduler: None
-  reasoning:
+  whole:
     type: AdamW
-    lr: 0.005
+    lr: 0.001
     weight_decay: 0.0001
     scheduler: None

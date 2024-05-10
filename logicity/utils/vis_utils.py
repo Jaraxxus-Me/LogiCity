@@ -55,12 +55,12 @@ def build_data_loader(data_config, test=False):
         train_dataset = VisDataset(train_vis_dataset_path, debug=debug)
         train_dataloader = DataLoader(train_dataset, batch_size=bs, shuffle=True, collate_fn=collate_fn, num_workers=4)
         val_dataset = VisDataset(val_vis_dataset_path)
-        val_dataloader = DataLoader(val_dataset, batch_size=bs, collate_fn=collate_fn)
+        val_dataloader = DataLoader(val_dataset, batch_size=1, collate_fn=collate_fn)
         return train_dataset, val_dataset, train_dataloader, val_dataloader
     else:
         test_vis_dataset_path = os.path.join(vis_dataset_path, "test/test_{}.pkl".format(dataset_name))
         test_dataset = VisDataset(test_vis_dataset_path)
-        test_dataloader = DataLoader(test_dataset, batch_size=bs, collate_fn=collate_fn)
+        test_dataloader = DataLoader(test_dataset, batch_size=1, collate_fn=collate_fn)
         return test_dataset, test_dataloader
 
 def build_optimizer(params, opt_config):

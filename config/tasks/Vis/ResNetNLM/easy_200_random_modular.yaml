@@ -1,13 +1,13 @@
 Data:
-  dataset_name: hard_fixed_final
-  data_path: vis_dataset/hard_fixed_final
-  mode: hard
+  dataset_name: easy_random_final
+  data_path: vis_dataset/easy_random_final
+  mode: easy
   batch_size: 2
   debug: false
 Model:
   name: ResNetNLM
   backbone: resnet50
-  ontology: config/rules/Vis/hard/ontology.yaml
+  ontology: config/rules/Vis/easy/ontology.yaml
   bbox_channels: 9
   BBOX_POS_MAX: 1024
   node_predictor:

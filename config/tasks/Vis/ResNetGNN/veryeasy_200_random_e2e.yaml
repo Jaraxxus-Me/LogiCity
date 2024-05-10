@@ -1,0 +1,25 @@
+Data:
+  dataset_name: easy_random_final
+  data_path: vis_dataset/easy_random_final
+  mode: easy
+  batch_size: 2
+  debug: true
+Model:
+  name: ResNetGNN
+  backbone: resnet50
+  ontology: config/rules/Vis/easy/ontology.yaml
+  bbox_channels: 9
+  BBOX_POS_MAX: 1024
+  node_predictor:
+    hidden: [512, 256, 128]
+  edge_predictor:
+    hidden: [128, 128]
+  gnn:
+    hidden: 128
+Optimizer:
+  epochs: 30
+  whole:
+    type: AdamW
+    lr: 0.0005
+    weight_decay: 0.0001
+    scheduler: None

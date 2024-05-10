@@ -1,0 +1,109 @@
+EntityTypes:
+  - Entity
+
+Predicates:
+  - IsPedestrian:
+      arity: 1
+      method: IsPed(Entity)
+      function: logicity.utils.pred_converter.z3.IsPed
+      description: Checks if entity x is a pedestrian.
+  - IsCar:
+      arity: 1
+      method: IsCar(Entity)
+      function: logicity.utils.pred_converter.z3.IsCar
+      description: Checks if agent x is a car.
+  - IsAmbulance:
+      arity: 1
+      method: IsAmb(Entity)
+      function: logicity.utils.pred_converter.z3.IsAmb
+      description: Checks if the agent has concept "ambulance".
+  - IsBus:
+      arity: 1
+      method: IsBus(Entity)
+      function: logicity.utils.pred_converter.z3.IsBus
+      description: Checks if the agent has concept "bus".
+  - IsPolice:
+      arity: 1
+      method: IsPolice(Entity)
+      function: logicity.utils.pred_converter.z3.IsPolice
+      description: Checks if the agent has concept "police".
+  - IsTiro:
+      arity: 1
+      method: IsTiro(Entity)
+      function: logicity.utils.pred_converter.z3.IsTiro
+      description: Checks if the agent has concept "tiro".
+  - IsReckless:
+      arity: 1
+      method: IsReckless(Entity)
+      function: logicity.utils.pred_converter.z3.IsReckless
+      description: Checks if the agent has concept "reckless".
+  - IsOld:
+      arity: 1
+      method: IsOld(Entity)
+      function: logicity.utils.pred_converter.z3.IsOld
+      description: Checks if the agent has concept "old".
+  - IsYoung:
+      arity: 1
+      method: IsYoung(Entity)
+      function: logicity.utils.pred_converter.z3.IsYoung
+      description: Checks if the agent has concept "young".
+  - IsAtInter:
+      arity: 1
+      method: IsAtInter(Entity)
+      function: logicity.utils.pred_converter.z3.IsAtInter
+      description: Checks if agent x at the intersection.
+  - IsInInter:
+      arity: 1
+      method: IsInInter(Entity)
+      function: logicity.utils.pred_converter.z3.IsInInter
+      description: Checks if agent x in the intersection.
+  - IsClose:
+      arity: 2
+      method: IsClose(Entity, Entity)
+      function: logicity.utils.pred_converter.z3.IsClose
+      description: Checks if agent x close to agent y.
+  - HigherPri:
+      arity: 2
+      method: HigherPri(Entity, Entity)
+      function: logicity.utils.pred_converter.z3.HigherPri
+      description: Checks if agent x, x has higher priority to y.
+  - CollidingClose:
+      arity: 2
+      method: CollidingClose(Entity, Entity)
+      function: logicity.utils.pred_converter.z3.CollidingClose
+      description: Checks if agent x is about to collide with agent y.
+  - LeftOf:
+      arity: 2
+      method: LeftOf(Entity, Entity)
+      function: logicity.utils.pred_converter.z3.LeftOf
+      description: Checks if agent x is left of agent y.
+  - RightOf:
+      arity: 2
+      method: RightOf(Entity, Entity)
+      function: logicity.utils.pred_converter.z3.RightOf
+      description: Checks if agent x is right of agent y.
+  - NextTo:
+      arity: 2
+      method: NextTo(Entity, Entity)
+      function: logicity.utils.pred_converter.z3.NextTo
+      description: Checks if agent x is next to agent y.
+  - Stop:
+      arity: 1
+      method: Stop(Entity)
+      function: None
+      description: Stop action.
+  - Fast:
+      arity: 1
+      method: Fast(Entity)
+      function: None
+      description: Fast action.
+  - Normal:
+      arity: 1
+      method: Normal(Entity)
+      function: None
+      description: Normal action.
+  - Slow:
+      arity: 1
+      method: Slow(Entity)
+      function: None
+      description: Slow action.

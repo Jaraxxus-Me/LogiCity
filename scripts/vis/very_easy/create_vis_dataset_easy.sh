@@ -1,10 +1,10 @@
 source /opt/conda/etc/profile.d/conda.sh
 conda activate logicity
 
-EXPNAME="hard_random_final"
+EXPNAME="very_easy_random_final"
 python3 main.py \
-        --config config/tasks/Vis/hard.yaml \
-        --mode hard \
+        --config config/tasks/Vis/very_easy.yaml \
+        --mode easy \
         --exp ${EXPNAME} \
         --train_world_num 100 \
         --val_world_num 20 \

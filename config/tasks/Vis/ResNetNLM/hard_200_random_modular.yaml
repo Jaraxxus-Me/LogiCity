@@ -1,6 +1,6 @@
 Data:
-  dataset_name: hard_fixed_final
-  data_path: vis_dataset/hard_fixed_final
+  dataset_name: hard_random_final
+  data_path: vis_dataset/hard_random_final
   mode: hard
   batch_size: 2
   debug: false
