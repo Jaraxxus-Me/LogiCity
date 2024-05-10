@@ -18,7 +18,7 @@ def CUDA(x):
 
 def get_parser():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=str, default='config/tasks/Vis/ResNetNLM/easy_200_fixed.yaml', help='Path to the config file.')
+    parser.add_argument("--config", type=str, default='config/tasks/Vis/ResNetGNN/easy_200_fixed_e2e.yaml', help='Path to the config file.')
     parser.add_argument("--exp", type=str, default='resnet_nlm')
     parser.add_argument('--only_supervise_car', default=True, help='Only supervise the car actions.')
     parser.add_argument("--ckpt", type=str, required=True, help='Path to the checkpoint file.')

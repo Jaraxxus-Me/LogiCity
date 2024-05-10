@@ -173,13 +173,16 @@ def train_modular(args):
                 val_fast_acc = val_action_total[4] / val_action_total[5]
                 val_stop_acc = val_action_total[6] / val_action_total[7]
 
-                val_action_factor = 1 / val_action_total[1] + 1 / val_action_total[3] \
-                                + 1 / val_action_total[5] + 1 / val_action_total[7]
-
-                val_action_weighted_acc = (val_slow_acc / val_action_total[1] \
-                                           + val_normal_acc / val_action_total[3] \
-                                           + val_fast_acc / val_action_total[5] \
-                                           + val_stop_acc / val_action_total[7]) / val_action_factor
+                val_acc_total = [val_slow_acc, val_normal_acc, val_fast_acc, val_stop_acc]
+                val_action_factor = 0
+                val_action_weighted_acc = 0
+                # filter unseen action
+                for i in range(4):
+                    if val_action_total[2*i+1] == 0:
+                        continue
+                    val_action_factor += 1 / val_action_total[2*i+1]
+                    val_action_weighted_acc += val_acc_total[i] / val_action_total[2*i+1]
+                val_action_weighted_acc /= val_action_factor
 
                 print("Slow: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(val_action_total[0], val_action_total[1], val_slow_acc))
                 print("Normal: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(val_action_total[2], val_action_total[3], val_normal_acc))
@@ -204,13 +207,17 @@ def train_modular(args):
         fast_acc = action_total[4] / action_total[5]
         stop_acc = action_total[6] / action_total[7]
 
-        action_factor = 1 / action_total[1] + 1 / action_total[3] \
-                        + 1 / action_total[5] + 1 / action_total[7]
-
-        action_weighted_acc = (slow_acc / action_total[1] \
-                                    + normal_acc / action_total[3] \
-                                    + fast_acc / action_total[5] \
-                                    + stop_acc / action_total[7]) / action_factor
+        acc_total = [slow_acc, normal_acc, fast_acc, stop_acc]
+        action_factor = 0
+        action_weighted_acc = 0
+        # filter unseen action
+        for i in range(4):
+            if action_total[2*i+1] == 0:
+                print("Action {} is unseen.".format(i))
+                continue
+            action_factor += 1 / action_total[2*i+1]
+            action_weighted_acc += acc_total[i] / action_total[2*i+1]
+        action_weighted_acc /= action_factor
 
         print("Slow: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(action_total[0], action_total[1], slow_acc))
         print("Normal: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(action_total[2], action_total[3], normal_acc))
@@ -354,13 +361,17 @@ def train_e2e(args):
                 val_fast_acc = val_action_total[4] / val_action_total[5]
                 val_stop_acc = val_action_total[6] / val_action_total[7]
 
-                val_action_factor = 1 / val_action_total[1] + 1 / val_action_total[3] \
-                                + 1 / val_action_total[5] + 1 / val_action_total[7]
+                val_acc_total = [val_slow_acc, val_normal_acc, val_fast_acc, val_stop_acc]
+                val_action_factor = 0
+                val_action_weighted_acc = 0
+                # filter unseen action
+                for i in range(4):
+                    if val_action_total[2*i+1] == 0:
+                        continue
+                    val_action_factor += 1 / val_action_total[2*i+1]
+                    val_action_weighted_acc += val_acc_total[i] / val_action_total[2*i+1]
+                val_action_weighted_acc /= val_action_factor
 
-                val_action_weighted_acc = (val_slow_acc / val_action_total[1] \
-                                           + val_normal_acc / val_action_total[3] \
-                                           + val_fast_acc / val_action_total[5] \
-                                           + val_stop_acc / val_action_total[7]) / val_action_factor
                 print("Epoch: {}, Iter: {}, Validation Loss: {:.4f}, Sample Avg Acc: {:.4f}".format(
                     epoch, iter_num, loss_val, acc_val))
                 print("Slow: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(val_action_total[0], val_action_total[1], val_slow_acc))
@@ -384,13 +395,18 @@ def train_e2e(args):
         fast_acc = action_total[4] / action_total[5]
         stop_acc = action_total[6] / action_total[7]
 
-        action_factor = 1 / action_total[1] + 1 / action_total[3] \
-                        + 1 / action_total[5] + 1 / action_total[7]
+        acc_total = [slow_acc, normal_acc, fast_acc, stop_acc]
+        action_factor = 0
+        action_weighted_acc = 0
+        # filter unseen action
+        for i in range(4):
+            if action_total[2*i+1] == 0:
+                print("Action {} is unseen.".format(i))
+                continue
+            action_factor += 1 / action_total[2*i+1]
+            action_weighted_acc += acc_total[i] / action_total[2*i+1]
+        action_weighted_acc /= action_factor
 
-        action_weighted_acc = (slow_acc / action_total[1] \
-                                    + normal_acc / action_total[3] \
-                                    + fast_acc / action_total[5] \
-                                    + stop_acc / action_total[7]) / action_factor
         print("Epoch: {}, Training Loss (Concepts): {:.4f}, Training Loss (Actions): {:.4f}, Sample Avg Acc: {:.4f}".format(
             epoch, loss_train_concepts, loss_train_actions, acc_train))
         print("Slow: Correct_num: {}, Total_num: {}, Acc: {:.4f}".format(action_total[0], action_total[1], slow_acc))
