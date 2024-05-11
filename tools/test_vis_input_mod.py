@@ -12,8 +12,8 @@ from logicity.utils.vis_utils import CPU, CUDA, build_data_loader, compute_actio
 
 def get_parser():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=str, default='config/tasks/Vis/ResNetGNN/easy_200_fixed_e2e.yaml', help='Path to the config file.')
-    parser.add_argument("--exp", type=str, default='resnet_nlm')
+    parser.add_argument("--config", type=str, default='config/tasks/Vis/ResNetNLM/easy_200_fixed_modular.yaml', help='Path to the config file.')
+    parser.add_argument("--exp", type=str, default='resnet_gnn')
     parser.add_argument('--only_supervise_car', default=True, help='Only supervise the car actions.')
     parser.add_argument("--ckpt", type=str, required=True, help='Path to the checkpoint file.')
     parser.add_argument("--add_concept_loss", default=True, help='Add concept_loss in addition to action_loss.')
@@ -45,7 +45,24 @@ if __name__ == "__main__":
     with torch.no_grad():
         for batch in tqdm(test_dataloader):
             gt_actions = CUDA(batch["next_actions"])
-            pred_actions = model(CUDA(batch["img"]), CUDA(batch["bboxes"]), CUDA(batch["directions"]), CUDA(batch["priorities"]), CUDA(batch["edge_index"]))
+            pred_unary_concepts, pred_binary_concepts = model.grounding(CUDA(batch["img"]), CUDA(batch["bboxes"]), \
+                                                                        CUDA(batch["directions"]), CUDA(batch["priorities"]), CUDA(batch["edge_index"]))
+            pred_round_unary_concepts = (pred_unary_concepts > 0.5).float()
+            pred_round_binary_concepts = (pred_binary_concepts > 0.5).float()
+
+            if "GNN" in args.config:
+                sliced_edge_concepts = model.create_sliced_edge_concepts(pred_round_binary_concepts, CUDA(batch["edge_index"]))
+                batch_graph = model.create_batch_graph(pred_round_unary_concepts, sliced_edge_concepts, CUDA(batch["edge_index"])) 
+                pred_actions = model.reasoning(batch_graph)
+            else:
+                assert "NLM" in args.config, "Only GNN and NLM are supported."
+                feed_dict = {
+                        "n": torch.tensor([pred_round_unary_concepts.shape[1]]*pred_round_unary_concepts.shape[0]), # [N] * (B*N)
+                        "states": pred_round_unary_concepts, # BN x N x C_node
+                        "relations": pred_round_binary_concepts, # BN x N x N x (C_edge+1)
+                    }
+                pred_actions = model.reasoning(feed_dict)
+
             if args.only_supervise_car:
                 is_car_mask = CUDA(batch["car_mask"])
                 is_car_mask = is_car_mask.bool().reshape(-1)
