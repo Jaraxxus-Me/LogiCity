@@ -1,6 +1,6 @@
 Data:
-  dataset_name: very_easy_random_final
-  data_path: vis_dataset/very_easy_random_final
+  dataset_name: easy_random_final
+  data_path: vis_dataset/easy_random_final
   mode: easy
   batch_size: 2
   debug: false
