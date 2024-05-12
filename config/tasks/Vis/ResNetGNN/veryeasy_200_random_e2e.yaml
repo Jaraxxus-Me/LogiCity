@@ -7,7 +7,7 @@ Data:
 Model:
   name: ResNetGNN
   backbone: resnet50
-  ontology: config/rules/Vis/easy/ontology.yaml
+  ontology: config/rules/Vis/very_easy/ontology.yaml
   bbox_channels: 9
   BBOX_POS_MAX: 1024
   node_predictor:

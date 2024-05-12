@@ -11,9 +11,9 @@ conda activate logicity
 # EXPNAME="easy_100_fixed_no_variance"
 
 ### use this EXPNAME for a temp demo ###
-EXPNAME="easy_fixed_final"
+EXPNAME="very_easy_fixed_final"
 python3 main.py \
-        --config config/tasks/Vis/easy.yaml \
+        --config config/tasks/Vis/very_easy.yaml \
         --mode easy \
         --exp ${EXPNAME} \
         --train_world_num 100 \

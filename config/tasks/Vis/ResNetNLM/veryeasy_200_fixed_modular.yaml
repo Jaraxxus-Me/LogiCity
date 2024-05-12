@@ -1,6 +1,6 @@
 Data:
-  dataset_name: very_easy_random_final
-  data_path: vis_dataset/very_easy_random_final
+  dataset_name: very_easy_fixed_final
+  data_path: vis_dataset/very_easy_fixed_final
   mode: easy
   batch_size: 2
   debug: false
@@ -26,8 +26,13 @@ Model:
   nlm_arity: 1
 Optimizer:
   epochs: 30
-  whole:
-    type: AdamW
+  grounding:
+    type: Adam
     lr: 0.001
+    weight_decay: 0.0001
+    scheduler: None
+  reasoning:
+    type: AdamW
+    lr: 0.005
     weight_decay: 0.0001
     scheduler: None
