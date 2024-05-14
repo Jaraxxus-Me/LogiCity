@@ -28,16 +28,24 @@ def get_parser():
     parser.add_argument("--modular", action='store_true', help='Train the model in a modular style.')
     parser.add_argument('--only_supervise_car', default=True, help='Only supervise the car actions.')
     parser.add_argument('--add_concept_loss', default=True, help='Only supervise the car actions.')
+    parser.add_argument('--data_rate', default=0.5, type=float, help='The rate of the data used for training.')
     return parser.parse_args()
 
 def train_modular(args):
     config = yaml.load(open(args.config, 'r'), Loader=yaml.Loader)
     data_config = config['Data']
+    data_config['rate'] = args.data_rate
     train_dataset, val_dataset, train_dataloader, val_dataloader = build_data_loader(data_config)
 
     model_config = config['Model']
     model = MODEL_BUILDER[model_config['name']](model_config, config['Data']['mode'])
     model = CUDA(model)
+
+    if 'init_model' in model_config and os.path.exists(model_config['init_model']):
+        print("Load the pretrained model from {}".format(model_config['init_model']))
+        checkpoint = torch.load(model_config['init_model'])
+        model.load_state_dict(checkpoint['model_state_dict'])
+        print("Load the pretrained model successfully.")
 
     grounding_opt_config = config["Optimizer"]["grounding"]
     grounding_optimizer = build_optimizer(model.grounding_net.parameters(), grounding_opt_config)
@@ -260,11 +268,18 @@ def train_modular(args):
 def train_e2e(args):
     config = yaml.load(open(args.config, 'r'), Loader=yaml.Loader)
     data_config = config['Data']
+    data_config['rate'] = args.data_rate
     train_dataset, val_dataset, train_dataloader, val_dataloader = build_data_loader(data_config)
 
     model_config = config['Model']
     model = MODEL_BUILDER[model_config['name']](model_config, config['Data']['mode'])
     model = CUDA(model)
+
+    if 'init_model' in model_config and os.path.exists(model_config['init_model']):
+        print("Load the pretrained model from {}".format(model_config['init_model']))
+        checkpoint = torch.load(model_config['init_model'])
+        model.load_state_dict(checkpoint['model_state_dict'])
+        print("Load the pretrained model successfully.")
 
     assert "whole" in config["Optimizer"], "The whole model should be optimized e2e."
     whole_opt_config = config["Optimizer"]["whole"]

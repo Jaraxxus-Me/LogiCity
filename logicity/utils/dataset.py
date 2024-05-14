@@ -63,6 +63,7 @@ class VisDataset(torch.utils.data.Dataset):
             vis_dataset_path, 
             debug=False,
             gt_vis=False,
+            data_rate=1.0
         ):
 
         self.gt_vis = gt_vis
@@ -71,6 +72,9 @@ class VisDataset(torch.utils.data.Dataset):
         self.vis_dataset_list = self.filter(list(self.vis_dataset.keys()))
         if debug:
             self.vis_dataset_list = self.vis_dataset_list[:100]
+        if data_rate < 1.0:
+            np.random.shuffle(self.vis_dataset_list)
+            self.vis_dataset_list = self.vis_dataset_list[:int(len(self.vis_dataset_list)*data_rate)]
         self.data_size = len(self.vis_dataset_list)
         self.direction_dict = {
             "left": [1, 0, 0, 0],
