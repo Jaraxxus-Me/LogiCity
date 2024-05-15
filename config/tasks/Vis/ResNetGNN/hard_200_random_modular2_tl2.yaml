@@ -1,0 +1,31 @@
+Data:
+  dataset_name: hard_random_final
+  data_path: vis_dataset/hard_random_final
+  mode: hard
+  batch_size: 2
+  debug: false
+Model:
+  init_model: vis_input_weights/easy/veryeasy_200_random_modular_gnn2/veryeasy_200_random_modular_gnn2_epoch29_valacc0.8461.pth
+  name: ResNetGNN
+  backbone: resnet50
+  ontology: config/rules/Vis/hard/ontology.yaml
+  bbox_channels: 9
+  BBOX_POS_MAX: 1024
+  node_predictor:
+    hidden: [512, 256, 128]
+  edge_predictor:
+    hidden: [128, 128]
+  gnn:
+    hidden: 128
+Optimizer:
+  epochs: 30
+  grounding:
+    type: Adam
+    lr: 0.001
+    weight_decay: 0.0001
+    scheduler: None
+  reasoning:
+    type: AdamW
+    lr: 0.005
+    weight_decay: 0.0001
+    scheduler: None
