@@ -29,12 +29,14 @@ def get_parser():
     parser.add_argument('--only_supervise_car', default=True, help='Only supervise the car actions.')
     parser.add_argument('--add_concept_loss', default=True, help='Only supervise the car actions.')
     parser.add_argument('--data_rate', default=0.5, type=float, help='The rate of the data used for training.')
+    parser.add_argument('--seed', default=1, type=int, help='Random seed.')
     return parser.parse_args()
 
 def train_modular(args):
     config = yaml.load(open(args.config, 'r'), Loader=yaml.Loader)
     data_config = config['Data']
     data_config['rate'] = args.data_rate
+    data_config['rand'] = args.seed
     train_dataset, val_dataset, train_dataloader, val_dataloader = build_data_loader(data_config)
 
     model_config = config['Model']
@@ -269,6 +271,7 @@ def train_e2e(args):
     config = yaml.load(open(args.config, 'r'), Loader=yaml.Loader)
     data_config = config['Data']
     data_config['rate'] = args.data_rate
+    data_config['rand'] = args.seed
     train_dataset, val_dataset, train_dataloader, val_dataloader = build_data_loader(data_config)
 
     model_config = config['Model']

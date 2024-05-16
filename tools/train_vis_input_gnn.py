@@ -22,12 +22,13 @@ class FocalLoss(nn.Module):
 
 def get_parser():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=str, default='config/tasks/Vis/ResNetGNN/hard_200_random_modular2_tl.yaml', help='Path to the config file.')
-    parser.add_argument("--exp", type=str, default='transfer_gnn_random_modular')
+    parser.add_argument("--config", type=str, default='config/tasks/Vis/ResNetGNN/hard_200_fixed_e2e_tl.yaml', help='Path to the config file.')
+    parser.add_argument("--exp", type=str, default='transfer_gnn_fixed_e2e')
     parser.add_argument("--modular", action='store_true', help='Train the model in a modular style.')
     parser.add_argument('--only_supervise_car', default=True, help='Only supervise the car actions.')
     parser.add_argument('--add_concept_loss', default=True, help='Only supervise the car actions.')
     parser.add_argument('--data_rate', default=0.5, type=float, help='The rate of the data used for training.')
+    parser.add_argument('--seed', default=1, type=int, help='Random seed.')
     return parser.parse_args()
 
 
@@ -49,6 +50,7 @@ def train_modular(args):
     config = yaml.load(open(args.config, 'r'), Loader=yaml.Loader)
     data_config = config['Data']
     data_config['rate'] = args.data_rate
+    data_config['rand'] = args.seed
     train_dataset, val_dataset, train_dataloader, val_dataloader = build_data_loader(data_config)
 
     model_config = config['Model']
@@ -277,6 +279,7 @@ def train_e2e(args):
     config = yaml.load(open(args.config, 'r'), Loader=yaml.Loader)
     data_config = config['Data']
     data_config['rate'] = args.data_rate
+    data_config['rand'] = args.seed
     train_dataset, val_dataset, train_dataloader, val_dataloader = build_data_loader(data_config)
 
     model_config = config['Model']
