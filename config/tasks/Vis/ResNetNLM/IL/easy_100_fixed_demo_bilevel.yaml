@@ -27,7 +27,7 @@ Model:
 Optimizer:
   epochs: 50
   grounding:
-    type: Adam
+    type: AdamW
     lr: 0.001
     weight_decay: 0.0001
     scheduler: None
