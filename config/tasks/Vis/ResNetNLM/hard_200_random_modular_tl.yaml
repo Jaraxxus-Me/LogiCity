@@ -29,11 +29,11 @@ Optimizer:
   epochs: 30
   grounding:
     type: Adam
-    lr: 0.0001
+    lr: 0.001
     weight_decay: 0.0001
     scheduler: None
   reasoning:
     type: AdamW
-    lr: 0.0005
+    lr: 0.005
     weight_decay: 0.0001
     scheduler: None
