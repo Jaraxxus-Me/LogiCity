@@ -50,10 +50,11 @@ def build_data_loader(data_config, test=False):
     bs = data_config['batch_size']
     if not test:
         data_rate = data_config['rate']
+        random_seed = data_config['rand']
         train_vis_dataset_path = os.path.join(vis_dataset_path, "train/train_{}.pkl".format(dataset_name))
         val_vis_dataset_path = os.path.join(vis_dataset_path, "val/val_{}.pkl".format(dataset_name))
 
-        train_dataset = VisDataset(train_vis_dataset_path, debug=debug, data_rate=data_rate)
+        train_dataset = VisDataset(train_vis_dataset_path, debug=debug, data_rate=data_rate, random_seed=random_seed)
         train_dataloader = DataLoader(train_dataset, batch_size=bs, shuffle=True, collate_fn=collate_fn, num_workers=4)
         val_dataset = VisDataset(val_vis_dataset_path)
         val_dataloader = DataLoader(val_dataset, batch_size=1, collate_fn=collate_fn)

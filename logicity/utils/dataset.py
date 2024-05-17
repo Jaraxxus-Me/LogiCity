@@ -63,17 +63,21 @@ class VisDataset(torch.utils.data.Dataset):
             vis_dataset_path, 
             debug=False,
             gt_vis=False,
-            data_rate=1.0
+            data_rate=1.0,
+            random_seed=-1
         ):
 
         self.gt_vis = gt_vis
+        if random_seed >= 0:
+            vis_dataset_path = vis_dataset_path.replace(".pkl", f"_rand{random_seed}.pkl")
+            print(f"Randomized data loaded from {vis_dataset_path}")
+
         with open(vis_dataset_path, "rb") as f:
             self.vis_dataset = pkl.load(f)
         self.vis_dataset_list = self.filter(list(self.vis_dataset.keys()))
         if debug:
             self.vis_dataset_list = self.vis_dataset_list[:100]
         if data_rate < 1.0:
-            np.random.shuffle(self.vis_dataset_list)
             self.vis_dataset_list = self.vis_dataset_list[:int(len(self.vis_dataset_list)*data_rate)]
         self.data_size = len(self.vis_dataset_list)
         self.direction_dict = {

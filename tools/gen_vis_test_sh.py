@@ -3,7 +3,7 @@ import re
 
 # Base directory containing the checkpoint folders
 base_dir = "vis_input_weights/hard"
-run = "transfer_modular_gnn_random"
+run = "transfer2_modular_gnn_random"
 
 # Regular expression to match the folders
 folder_pattern = re.compile(r"{}_\d+\.?\d*".format(run))
