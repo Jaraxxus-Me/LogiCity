@@ -11,9 +11,9 @@ Model:
   bbox_channels: 9
   BBOX_POS_MAX: 1024
   node_predictor:
-    hidden: [512, 256]
+    hidden: [512, 256, 128]
   edge_predictor:
-    hidden: [256, 64]
+    hidden: [128, 128]
   nlm_args:
     output_dims: 8
     logic_hidden_dim: []
@@ -25,7 +25,7 @@ Model:
     exclude_self: True
   nlm_arity: 1
 Optimizer:
-  epochs: 50
+  epochs: 30
   grounding:
     type: AdamW
     lr: 0.001
