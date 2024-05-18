@@ -3,10 +3,10 @@ import re
 
 # Base directory containing the checkpoint folders
 base_dir = "vis_input_weights/hard"
-run = "transfer2_modular_gnn_random"
+run = "transfer_modular_nlm_fixed"
 
 # Regular expression to match the folders
-folder_pattern = re.compile(r"{}_\d+\.?\d*".format(run))
+folder_pattern = re.compile(r"{}_\d+\.\d+_\d+".format(run))
 
 # Regular expression to extract the valacc value from filenames
 valacc_pattern = re.compile(r"valacc([\d\.]+).pth")
@@ -46,18 +46,32 @@ for ckpt in all_top_checkpoints:
     shell_script += f'    "{ckpt}"\n'
 
 # Add the remaining part of the shell script
-shell_script += """)
-# Loop over each checkpoint file
-for ckpt in "${checkpoints[@]}"
-do
-    exp_name=$(basename "$ckpt" | cut -d'_' -f1-9)  # This extracts the part of the filename without extension
-    python3 tools/test_vis_input_e2e.py \
-        --config config/tasks/Vis/ResNetGNN/hard_200_fixed_e2e.yaml \
-        --ckpt "$ckpt" \
-        --exp "$exp_name" \
-        >> "log_vis/${exp_name}_transfer_test.log"
-done
-"""
+if 'e2e' in run:
+    shell_script += """)
+    # Loop over each checkpoint file
+    for ckpt in "${checkpoints[@]}"
+    do
+        exp_name=$(basename "$ckpt" | cut -d'_' -f1-9)  # This extracts the part of the filename without extension
+        python3 tools/test_vis_input_e2e.py \
+            --config config/tasks/Vis/ResNetNLM/hard_200_fixed_e2e.yaml \
+            --ckpt "$ckpt" \
+            --exp "$exp_name" \
+            >> "log_vis/${exp_name}_transfer_test.log"
+    done
+    """
+else:
+    shell_script += """)
+    # Loop over each checkpoint file
+    for ckpt in "${checkpoints[@]}"
+    do
+        exp_name=$(basename "$ckpt" | cut -d'_' -f1-9)  # This extracts the part of the filename without extension
+        python3 tools/test_vis_input_mod.py \
+            --config config/tasks/Vis/ResNetNLM/hard_200_fixed_modular.yaml \
+            --ckpt "$ckpt" \
+            --exp "$exp_name" \
+            >> "log_vis/${exp_name}_transfer_test.log"
+    done
+    """
 
 # Save the shell script to a file
 with open("run_top_checkpoints_{}.sh".format(run), "w") as f:
