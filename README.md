@@ -185,7 +185,7 @@ LogiCity/
 ```
 
 ### Pre-trained Models & Test
-All of the models displayed in Table 3 can be downloaded [here](https://drive.google.com/file/d/1gDMu4AlljMR1FeUh5ty1y7sO0KW5CV4d/view?usp=sharing).
+All of the models displayed in Table 3 can be downloaded [here](https://drive.google.com/file/d/1IeB0DnglkjCMH1n3q_10D1Q94eR7jLG7/view?usp=sharing).
 Structure them into:
 ```plaintext
 LogiCity/
