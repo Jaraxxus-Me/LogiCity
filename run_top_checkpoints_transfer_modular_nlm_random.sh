@@ -1,3 +1,6 @@
+source /opt/conda/etc/profile.d/conda.sh
+conda activate base
+
 checkpoints=(
     "vis_input_weights/hard/transfer_modular_nlm_random_0.5_2/transfer_modular_nlm_random_0.5_2_epoch16_valacc0.2975.pth"
     "vis_input_weights/hard/transfer_modular_nlm_random_0.5_2/transfer_modular_nlm_random_0.5_2_epoch18_valacc0.2913.pth"

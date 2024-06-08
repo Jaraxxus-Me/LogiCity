@@ -13,7 +13,7 @@ def parse_log_file(file_path):
     return metrics
 
 def main():
-    folder_path = 'log_vis/transfer/gnn_0/modular'  # Replace with your folder path
+    folder_path = 'log_vis/transfer/nlm_2'  # Replace with your folder path
     log_files = [f for f in os.listdir(folder_path) if f.endswith('.log')]
     
     experiments = defaultdict(list)

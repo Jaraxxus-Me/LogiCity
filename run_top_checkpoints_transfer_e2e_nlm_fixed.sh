@@ -1,3 +1,6 @@
+source /opt/conda/etc/profile.d/conda.sh
+conda activate base
+
 checkpoints=(
     "vis_input_weights/hard/transfer_e2e_nlm_fixed_0.8_0/transfer_e2e_nlm_fixed_0.8_0_epoch26_valacc0.2417.pth"
     "vis_input_weights/hard/transfer_e2e_nlm_fixed_0.8_0/transfer_e2e_nlm_fixed_0.8_0_epoch21_valacc0.2408.pth"
