@@ -15,9 +15,10 @@ from utils import *
 import pandas as pd
 import argparse
 import random
-from openai import OpenAI
+from openai import AzureOpenAI
 import ast
 random.seed(0)
+
 
 def call_gpt(args, prompt, client, llm_version, temperature):
 
@@ -41,12 +42,18 @@ def call_gpt(args, prompt, client, llm_version, temperature):
 def main():
 
     parser = argparse.ArgumentParser(description='')    
-    parser.add_argument('--data_dir', type=str, default='/shared_data/p_vidalr/jinqiluo/dataset/ip/lip/MMLU', help='the path to the MMLU dataset')
+    parser.add_argument('--data_dir', type=str, default='vis_dataset/mmlu_logicity/hard', help='the path to the MMLU dataset')
     parser.add_argument('--split', type=str, default='test', help='the split to evaluate')
     parser.add_argument('--shots', type=int, default=3, help='the number of shots')
     args = parser.parse_args()
 
-    client = OpenAI(api_key="xxxx")
+    client = AzureOpenAI(
+        azure_endpoint=os.getenv("AZURE_OPENAI_API_BASE"),  # this must match
+        api_version=os.getenv("AZURE_OPENAI_API_VERSION"),  # this must match
+        api_key=os.getenv("AZURE_OPENAI_API_KEY")           # this must match
+    )
+
+
 
     print("Begin the MMLU evaluation.")
     subjects = sorted([f.split("_test.csv")[0] for f in os.listdir(os.path.join(args.data_dir, "test")) if "_test.csv" in f])
@@ -59,7 +66,7 @@ def main():
 
         print(f"Testing the subject: {subject}")
         train_df = pd.read_csv(os.path.join(args.data_dir, "dev", subject + "_dev.csv"), header=None)
-        val_df = pd.read_csv(os.path.join(args.data_dir, "val", subject + "_val.csv"), header=None)
+        # val_df = pd.read_csv(os.path.join(args.data_dir, "val", subject + "_val.csv"), header=None)
         test_df = pd.read_csv(os.path.join(args.data_dir, "test", subject + "_test.csv"), header=None)
 
         # build demos as the first several "training" questions from the subject
@@ -98,7 +105,7 @@ def main():
             call_gpt_flag = True
             while call_gpt_flag:
                 try:
-                    model_answer = call_gpt(args, final_input, client=client, llm_version="gpt-3.5-turbo-0125", temperature=0)
+                    model_answer = call_gpt(args, final_input, client=client, llm_version="reap-gpt35-1106-access", temperature=0)
                     em, normalized_pred, normalized_gold = single_ans_em(model_answer, each_question["answer"])
                     if len(normalized_pred) == 1:
                         call_gpt_flag = False
