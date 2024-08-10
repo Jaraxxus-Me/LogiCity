@@ -41,7 +41,7 @@ def call_gpt(args, prompt, client, llm_version, temperature):
 def main():
 
     parser = argparse.ArgumentParser(description='')    
-    parser.add_argument('--data_dir', type=str, default='/shared_data/p_vidalr/jinqiluo/dataset/ip/lip/MMLU', help='the path to the MMLU dataset')
+    parser.add_argument('--data_dir', type=str, default='vis_dataset/mmlu', help='the path to the MMLU dataset')
     parser.add_argument('--split', type=str, default='test', help='the split to evaluate')
     parser.add_argument('--shots', type=int, default=3, help='the number of shots')
     args = parser.parse_args()
