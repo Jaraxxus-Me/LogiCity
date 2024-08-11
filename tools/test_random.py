@@ -1,53 +1,27 @@
 import logging
 import os
-import sys
-import csv
 import argparse
 import numpy as np
-import multiprocessing
 import time
-import json
-from time import sleep
 import random
-from tqdm import tqdm
 from utils import *
 import pandas as pd
 import argparse
 import random
-from openai import AzureOpenAI
-import ast
 random.seed(0)
-
-def call_gpt(args, prompt, client, llm_version, temperature):
-    new_message = [
-        {"role": "system", "content": prompt[0]},
-        {"role": "system", "content": prompt[1]},
-        {"role": "user", "content": prompt[2]},
-    ]
-    gpt_response = client.chat.completions.create(
-            model=llm_version,
-            messages=new_message,
-            max_tokens=512,
-        )
-    gpt_response_message = gpt_response.choices[0].message.content
-    return gpt_response_message
 
 def main():
     parser = argparse.ArgumentParser(description='')    
     parser.add_argument('--data_dir', type=str, default='vis_dataset/mmlu_logicity/hard', help='the path to the MMLU dataset')
     parser.add_argument('--split', type=str, default='test', help='the split to evaluate')
-    parser.add_argument('--shots', type=int, default=10, help='the number of shots')
-    parser.add_argument('--exp', type=str, default='demo', help='exp name')
+    parser.add_argument('--shots', type=int, default=5, help='the number of shots')
+    parser.add_argument('--exp', type=str, default='random5', help='exp name')
     parser.add_argument('--good_prompt', action='store_true', help='whether to use good prompt')
     parser.add_argument('--start', type=int, default=0, help='start index')
     parser.add_argument('--end', type=int, default=-1, help='end index')
     args = parser.parse_args()
 
-    client = AzureOpenAI(
-        azure_endpoint=os.getenv("AZURE_OPENAI_API_BASE"),  # this must match
-        api_version=os.getenv("AZURE_OPENAI_API_VERSION"),  # this must match
-        api_key=os.getenv("AZURE_OPENAI_API_KEY")           # this must match
-    )
+    random.seed(4)
     # Setting up the logger
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     logger = logging.getLogger(__name__)
@@ -68,68 +42,27 @@ def main():
         subject_em = 0
 
         logger.info(f"Testing the subject: {subject}")
-        train_df = pd.read_csv(os.path.join(args.data_dir, "dev", subject + "_dev.csv"), header=None)
         test_df = pd.read_csv(os.path.join(args.data_dir, "test", subject + "_test.csv"), header=None)
-
-        # build demos as the first several "training" questions from the subject
-        if args.good_prompt:
-            assert os.path.exists(os.path.join(args.data_dir, "good_prompt_id_{}.npy".format(args.shots))), "good prompt file not found"
-            good_prompt_id = np.load(os.path.join(args.data_dir, "good_prompt_id_{}.npy".format(args.shots)))
-            demos = data_from_csv_to_list(train_df)
-            demos = [demos[i] for i in good_prompt_id]
-        else:
-            all_data = data_from_csv_to_list(train_df)
-            desired_num = {
-                "A": 1,
-                "B": 1,
-                "C": 1,
-                "D": 2,
-            }
-            answer_id = {}
-            for i, each_data in enumerate(all_data):
-                if each_data["answer"] not in answer_id:
-                    answer_id[each_data["answer"]] = []
-                answer_id[each_data["answer"]].append(i)
-            data_ids = []
-            for each_answer in answer_id:
-                data_ids.extend(random.sample(answer_id[each_answer], desired_num[each_answer]))
-            np.save(os.path.join(args.data_dir, "good_prompt_id_{}.npy".format(args.shots)), np.array(data_ids))
-            demos = data_from_csv_to_list(train_df)[:args.shots]
-        demos_questions = [d["question"].strip() for d in demos]
         
         test_set = data_from_csv_to_list(test_df)
         test_set = test_set[args.start:args.end]
         logger.info(f"Number of test questions: {len(test_set)}")
 
-        prompt_demo = f"You are an expert in First-Order-Logic (FOL) Rule induction, the following question-answers are FOL reasoning examples. Here are {args.shots} demonstrations:\n"
-        for demo in demos:
-            prompt_demo += "Question: " + demo["question"] + "\n"
-            answer = demo["answer"]
-            prompt_demo += "Answer: " + answer.strip() + "\n\n"
-
         s = time.time()
         for i, each_question in enumerate(test_set):
-            prompt_instruct = "Now try your best to first identify the FOL rules from the examples above and then answer the following question. Your answer should strictly end with the format of single letter: \'Answer: _.\'\n"
-            question_string = each_question["question"]
-            prompt_question = "Question: " + question_string  + "\n"
-            prompt_question += "Answer:"
-            final_input = [prompt_demo, prompt_instruct, prompt_question]
-            logger.info(f"prompt_demo: {prompt_demo}")
-            logger.info(f"prompt_instruct: {prompt_instruct}")
-            logger.info(f"prompt_question: {prompt_question}")
             logger.info("{}/{} (time_elapsed: {}), current acc: {}".format(i, len(test_set), time.time()-s, np.mean(score_list)))
-            if (i+1) % 800 == 0:
-                logger.info("Saving the results...")
-                np.save("log_vis/gpt/gt_list_{}_{}_{}.npy".format(args.exp, args.start, i+args.start), gt_list)
-                np.save("log_vis/gpt/res_list_{}_{}_{}.npy".format(args.exp, args.start, i+args.start), res_list)
-                np.save("log_vis/gpt/all_subject_score_list_{}_{}_{}.npy".format(args.exp, args.start, i+args.start), all_subject_score_list)
-                logger.info("Results saved.")
+            # if (i+1) % 800 == 0:
+            #     logger.info("Saving the results...")
+            #     np.save("log_vis/gpt/gt_list_{}_{}_{}.npy".format(args.exp, args.start, i+args.start), gt_list)
+            #     np.save("log_vis/gpt/res_list_{}_{}_{}.npy".format(args.exp, args.start, i+args.start), res_list)
+            #     np.save("log_vis/gpt/all_subject_score_list_{}_{}_{}.npy".format(args.exp, args.start, i+args.start), all_subject_score_list)
+            #     logger.info("Results saved.")
 
             format_wrong_times = 0
             call_gpt_flag = True
             while call_gpt_flag:
                 try:
-                    model_answer = call_gpt(args, final_input, client=client, llm_version="gpt4t", temperature=0)
+                    model_answer = random.choice(["A", "B", "C", "D"])
                     em, normalized_pred, normalized_gold = single_ans_em(model_answer, each_question["answer"])
                     if len(normalized_pred) == 1:
                         gt_list.append(normalized_gold)
@@ -151,7 +84,6 @@ def main():
 
 
         score_list = np.array(score_list)
-        acc = np.mean(score_list)
         all_subject_score_list.append(score_list)
 
     for each_subject, score_list in zip(subjects, all_subject_score_list):

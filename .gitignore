@@ -3,6 +3,7 @@ logicity/__pycache__
 .vscode/
 log/
 log_rl/
+log_vis/
 tb_logs/
 *.gif
 # vis*/
