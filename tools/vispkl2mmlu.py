@@ -5,10 +5,10 @@ import os
 import csv
 import json
 
-pkl_path = 'vis_dataset/hard_fixed_final/test/test_hard_fixed_final.pkl'
-tgt_path = 'vis_dataset/mmlu_logicity_jessica/hard/test'
-csv_path = os.path.join(tgt_path, 'hard_fixed_final_mmlu.csv')
-label_json_path = os.path.join(tgt_path, 'hard_fixed_final_mmlu_label.json')
+pkl_path = 'vis_dataset/very_easy_fixed_final/test/test_very_easy_fixed_final.pkl'
+tgt_path = 'vis_dataset/mmlu_logicity_jessica/easy/test'
+csv_path = os.path.join(tgt_path, 'easy_fixed_final_mmlu.csv')
+label_json_path = os.path.join(tgt_path, 'easy_fixed_final_mmlu_label.json')
 
 question_base = "In the scene you see a total of {} entities, they are named as follows: {}. There exist the following predicates as their attributes and relations: {}. The truth value of these predicates grounded to the entities are as follows (Only the ones that are True are provided, assume the rest are False): {}. What is the next action of entity {}?"
 answer_a = "Slow"
@@ -43,15 +43,15 @@ with open(csv_path, mode='w', newline='') as csvfile:
         next_actions = list(vis_dataset[step_name]["Next_actions"].values())
 
         num_entities = len(next_actions)
-        entity_names = [f"Entity_{i}" for i in range(num_entities)]
+        entity_names = [f"Entity{i}" for i in range(num_entities)]
 
         predicates_names = []
         true_groundings = []
 
         for k, v in predicates.items():
-            if k == "Sees":
-                # no need to add sees
-                continue
+            # if k == "Sees":
+            #     # no need to add sees
+            #     continue
             if len(v.shape) == 1:
                 predicates_names.append(f"{k} (arity: 1)")
                 for i, entity_name in enumerate(entity_names):
@@ -62,7 +62,7 @@ with open(csv_path, mode='w', newline='') as csvfile:
                 for i, entity_name in enumerate(entity_names):
                     for j, entity_name2 in enumerate(entity_names):
                         if i != j and v[i][j] == 1:
-                            true_groundings.append(f"{k}({entity_name}, {entity_name2})")
+                            true_groundings.append(f"{k}({entity_name},{entity_name2})")
 
         for i, e in enumerate(entity_names):
             if types[i] != 'Car':
@@ -79,22 +79,38 @@ with open(csv_path, mode='w', newline='') as csvfile:
             csv_writer.writerow([question, answer_a, answer_b, answer_c, answer_d, answer])
 
             # Collecting labels
-            self_predicates = [p for p in true_groundings if f"({e})" in p or f"({e}, " in p or f", {e})" in p]
+            self_predicates = []
+            for p in true_groundings:
+                if "Sees" in p:
+                    # Sees has to be the first
+                    if f"({e}," in p:
+                        self_predicates.append(p)
+                else:
+                    if f"({e}," in p:
+                        self_predicates.append(p)
+                    elif f",{e})" in p:
+                        self_predicates.append(p)
             related_entities = []
             for p in self_predicates:
-                if f"({e}, " in p:
-                    ent_r = p.replace(f"({e}, ", "").split(")")[0]
+                if f"({e}," in p:
+                    ent_r = p.replace(f"({e},", "").split(")")[0]
                     related_entities.append(ent_r)
-                elif f", {e})" in p:
-                    ent_r = p.replace(f", {e})", "").split("(")[1]
+                elif f",{e})" in p:
+                    ent_r = p.replace(f",{e})", "").split("(")[1]
                     related_entities.append(ent_r)
+            related_predicates = []
+            for p in true_groundings:
+                for e_r in related_entities:
+                    if f"({e_r})" in p:
+                        related_predicates.append(p)
             label_data = {
                 "id": id,
                 "question": question,
                 "answer": answer,
                 "self_predicates": self_predicates,
                 "self_entity": e,
-                "related_entities": related_entities
+                "related_entities": related_entities,
+                'related_predicates': related_predicates
             }
             labels.append(label_data)
 
