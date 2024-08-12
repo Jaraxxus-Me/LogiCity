@@ -3,10 +3,12 @@ from tqdm import tqdm
 import pickle as pkl
 import os
 import csv
+import json
 
 pkl_path = 'vis_dataset/hard_fixed_final/test/test_hard_fixed_final.pkl'
-tgt_path = 'vis_dataset/mmlu_logicity/hard/test'
+tgt_path = 'vis_dataset/mmlu_logicity_jessica/hard/test'
 csv_path = os.path.join(tgt_path, 'hard_fixed_final_mmlu.csv')
+label_json_path = os.path.join(tgt_path, 'hard_fixed_final_mmlu_label.json')
 
 question_base = "In the scene you see a total of {} entities, they are named as follows: {}. There exist the following predicates as their attributes and relations: {}. The truth value of these predicates grounded to the entities are as follows (Only the ones that are True are provided, assume the rest are False): {}. What is the next action of entity {}?"
 answer_a = "Slow"
@@ -28,6 +30,9 @@ with open(pkl_path, "rb") as f:
     vis_dataset = pkl.load(f)
 vis_dataset_list = filter(list(vis_dataset.keys()))
 
+labels = []
+id = 0
+
 with open(csv_path, mode='w', newline='') as csvfile:
     csv_writer = csv.writer(csvfile)
 
@@ -35,8 +40,6 @@ with open(csv_path, mode='w', newline='') as csvfile:
         predicates = vis_dataset[step_name]["Predicate_groundings"]
         bboxes = list(vis_dataset[step_name]["Bboxes"].values())
         types = list(vis_dataset[step_name]["Types"].values())
-        detailed_types = list(vis_dataset[step_name]["Detailed_types"].values())
-        priorities = list(vis_dataset[step_name]["Priorities"].values())
         next_actions = list(vis_dataset[step_name]["Next_actions"].values())
 
         num_entities = len(next_actions)
@@ -46,6 +49,9 @@ with open(csv_path, mode='w', newline='') as csvfile:
         true_groundings = []
 
         for k, v in predicates.items():
+            if k == "Sees":
+                # no need to add sees
+                continue
             if len(v.shape) == 1:
                 predicates_names.append(f"{k} (arity: 1)")
                 for i, entity_name in enumerate(entity_names):
@@ -72,4 +78,30 @@ with open(csv_path, mode='w', newline='') as csvfile:
                 answer = "D"
             csv_writer.writerow([question, answer_a, answer_b, answer_c, answer_d, answer])
 
-print("Data successfully written to CSV file in MMLU format.")
+            # Collecting labels
+            self_predicates = [p for p in true_groundings if f"({e})" in p or f"({e}, " in p or f", {e})" in p]
+            related_entities = []
+            for p in self_predicates:
+                if f"({e}, " in p:
+                    ent_r = p.replace(f"({e}, ", "").split(")")[0]
+                    related_entities.append(ent_r)
+                elif f", {e})" in p:
+                    ent_r = p.replace(f", {e})", "").split("(")[1]
+                    related_entities.append(ent_r)
+            label_data = {
+                "id": id,
+                "question": question,
+                "answer": answer,
+                "self_predicates": self_predicates,
+                "self_entity": e,
+                "related_entities": related_entities
+            }
+            labels.append(label_data)
+
+            id += 1
+
+# Write labels to JSON file
+with open(label_json_path, 'w') as json_file:
+    json.dump(labels, json_file, indent=4)
+
+print("Data successfully written to CSV and label JSON files in MMLU format.")
