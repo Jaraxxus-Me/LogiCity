@@ -12,8 +12,8 @@ from logicity.utils.vis_utils import CPU, CUDA, build_data_loader, compute_actio
 
 def get_parser():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=str, default='config/tasks/Vis/ResNetNLM/easy_200_fixed_modular.yaml', help='Path to the config file.')
-    parser.add_argument("--exp", type=str, default='resnet_gnn')
+    parser.add_argument("--config", type=str, default='config/tasks/Vis/ResNetNLM/hard_200_fixed_modular.yaml', help='Path to the config file.')
+    parser.add_argument("--exp", type=str, default='hard_nlm_mod')
     parser.add_argument('--only_supervise_car', default=True, help='Only supervise the car actions.')
     parser.add_argument("--ckpt", type=str, required=True, help='Path to the checkpoint file.')
     parser.add_argument("--add_concept_loss", default=True, help='Add concept_loss in addition to action_loss.')
@@ -38,6 +38,8 @@ if __name__ == "__main__":
     # unary_acc_test = 0.
     # binary_acc_test = 0.
     action_total = [0, 0, 0, 0, 0, 0, 0, 0]
+    pred_mapper = {0: "a", 1: "b", 2: "c", 3: "d"}
+    res = []
     # correct_unary_total = [0, 0, 0, 0, 0, 0, 0, 0]
     # gt_unary_total = [0, 0, 0, 0, 0, 0, 0, 0]
     # correct_binary_total = [0, 0, 0, 0]
@@ -68,8 +70,10 @@ if __name__ == "__main__":
                 is_car_mask = is_car_mask.bool().reshape(-1)
                 pred_actions = pred_actions.reshape(-1, 4)[is_car_mask]
                 gt_actions = gt_actions.reshape(-1)[is_car_mask]
-            acc, action_results_list = compute_action_acc(pred_actions, gt_actions)
+            pred, acc, action_results_list = compute_action_acc(pred_actions, gt_actions)
             acc_test += acc
+            for p in pred:
+                res.append(pred_mapper[p])
             for i, a in enumerate(action_results_list):
                 action_total[i] += a
 
@@ -138,4 +142,5 @@ if __name__ == "__main__":
     # print("Binary Concept Sample Avg Acc: {:.4f}".format(binary_acc_test))
     # print("Unary Concept Weighted Acc: {:.4f}".format(unary_weighted_acc))
     # print("Binary Concept Weighted Acc: {:.4f}".format(binary_weighted_acc))
+    np.save(f"res_list_{args.exp}.npy", res)
     print()

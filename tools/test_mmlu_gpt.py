@@ -15,19 +15,20 @@ import pandas as pd
 import argparse
 import random
 from openai import AzureOpenAI
-import ast
+import openai
 random.seed(0)
 
-def call_gpt(args, prompt, client, llm_version, temperature):
+def call_gpt(args, prompt, llm_version, temperature):
     new_message = [
         {"role": "system", "content": prompt[0]},
         {"role": "system", "content": prompt[1]},
         {"role": "user", "content": prompt[2]},
     ]
-    gpt_response = client.chat.completions.create(
+    gpt_response = openai.ChatCompletion.create(
             model=llm_version,
             messages=new_message,
             max_tokens=512,
+            temperature=temperature
         )
     gpt_response_message = gpt_response.choices[0].message.content
     return gpt_response_message
@@ -35,6 +36,7 @@ def call_gpt(args, prompt, client, llm_version, temperature):
 def main():
     parser = argparse.ArgumentParser(description='')    
     parser.add_argument('--data_dir', type=str, default='vis_dataset/mmlu_logicity/hard', help='the path to the MMLU dataset')
+    parser.add_argument('--jessica_train_pkl', type=str, default='test', help='the split to evaluate')
     parser.add_argument('--split', type=str, default='test', help='the split to evaluate')
     parser.add_argument('--shots', type=int, default=10, help='the number of shots')
     parser.add_argument('--exp', type=str, default='demo', help='exp name')
@@ -43,11 +45,7 @@ def main():
     parser.add_argument('--end', type=int, default=-1, help='end index')
     args = parser.parse_args()
 
-    client = AzureOpenAI(
-        azure_endpoint=os.getenv("AZURE_OPENAI_API_BASE"),  # this must match
-        api_version=os.getenv("AZURE_OPENAI_API_VERSION"),  # this must match
-        api_key=os.getenv("AZURE_OPENAI_API_KEY")           # this must match
-    )
+    openai.api_key = "sk-BjKEtLx2h0v0Z93EV2Myju-oijzTN9DOBZDQj4Ep5rT3BlbkFJ_voUis6vY08PtIoB-scZRDgfyLJQNLh7kN5CNt23wA"
     # Setting up the logger
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     logger = logging.getLogger(__name__)
@@ -129,7 +127,7 @@ def main():
             call_gpt_flag = True
             while call_gpt_flag:
                 try:
-                    model_answer = call_gpt(args, final_input, client=client, llm_version="gpt4t", temperature=0)
+                    model_answer = call_gpt(args, final_input, llm_version="gpt-4", temperature=0)
                     em, normalized_pred, normalized_gold = single_ans_em(model_answer, each_question["answer"])
                     if len(normalized_pred) == 1:
                         gt_list.append(normalized_gold)

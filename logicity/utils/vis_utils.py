@@ -30,7 +30,7 @@ def compute_action_acc(pred, label):
     stop_correct_num = np.sum((pred==label)&(label==3))
     stop_gt_num = np.sum(label==3)
 
-    return acc, [slow_correct_num, slow_gt_num, normal_correct_num, normal_gt_num, \
+    return pred, acc, [slow_correct_num, slow_gt_num, normal_correct_num, normal_gt_num, \
             fast_correct_num, fast_gt_num, stop_correct_num, stop_gt_num]
 
 def collate_fn(batch):

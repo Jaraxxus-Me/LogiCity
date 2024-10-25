@@ -5,10 +5,10 @@ import os
 import csv
 import json
 
-pkl_path = 'vis_dataset/very_easy_fixed_final/test/test_very_easy_fixed_final.pkl'
-tgt_path = 'vis_dataset/mmlu_logicity_jessica/easy/test'
-csv_path = os.path.join(tgt_path, 'easy_fixed_final_mmlu.csv')
-label_json_path = os.path.join(tgt_path, 'easy_fixed_final_mmlu_label.json')
+pkl_path = 'vis_dataset/hard_fixed_final/test/test_hard_fixed_final.pkl'
+tgt_path = 'vis_dataset/mmlu_logicity_jessica/hard/test'
+csv_path = os.path.join(tgt_path, 'hard_fixed_final_mmlu.csv')
+label_json_path = os.path.join(tgt_path, 'hard_fixed_final_mmlu_label.json')
 
 question_base = "In the scene you see a total of {} entities, they are named as follows: {}. There exist the following predicates as their attributes and relations: {}. The truth value of these predicates grounded to the entities are as follows (Only the ones that are True are provided, assume the rest are False): {}. What is the next action of entity {}?"
 answer_a = "Slow"
@@ -80,24 +80,27 @@ with open(csv_path, mode='w', newline='') as csvfile:
 
             # Collecting labels
             self_predicates = []
+            related_entities = []
             for p in true_groundings:
                 if "Sees" in p:
                     # Sees has to be the first
-                    if f"({e}," in p:
+                    if f"Sees({e}," in p:
                         self_predicates.append(p)
+                        related_entities.append(p.replace(f"Sees({e},", "").split(")")[0])
+
+            for p in true_groundings:
+                if "Sees" in p:
+                    continue
                 else:
                     if f"({e}," in p:
-                        self_predicates.append(p)
+                        if any(f",{e})" in p for e in related_entities):
+                            self_predicates.append(p)
                     elif f",{e})" in p:
+                        if any(f"({e}," in p for e in related_entities):
+                            self_predicates.append(p)
+                    elif f"({e})" in p:
                         self_predicates.append(p)
-            related_entities = []
-            for p in self_predicates:
-                if f"({e}," in p:
-                    ent_r = p.replace(f"({e},", "").split(")")[0]
-                    related_entities.append(ent_r)
-                elif f",{e})" in p:
-                    ent_r = p.replace(f",{e})", "").split("(")[1]
-                    related_entities.append(ent_r)
+
             related_predicates = []
             for p in true_groundings:
                 for e_r in related_entities:
@@ -110,7 +113,9 @@ with open(csv_path, mode='w', newline='') as csvfile:
                 "self_predicates": self_predicates,
                 "self_entity": e,
                 "related_entities": related_entities,
-                'related_predicates': related_predicates
+                'related_predicates': related_predicates,
+                "world_step": step_name,
+                "ent_id": i
             }
             labels.append(label_data)
 
