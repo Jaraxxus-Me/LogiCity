@@ -2,18 +2,37 @@ import numpy as np
 import pickle as pkl
 import os
 
-jessica_pkl = 'vis_dataset/mmlu_logicity_jessica/hard_test/all_answered.pkl'
-gt_list = np.load("log_vis/gpt/res_list_hard_gnn_mod2.npy")
-gpt_res_list = np.load("log_vis/gpt/res_list_gpt4t_5shot_gp_0_-1.npy")
+jessica_pkl = 'vis_dataset/mmlu_logicity_human/hard_test/all_answered.pkl'
+exp_name = 'gpt-4o-mini'
+gt_path = 'log_vis/gpt_cm/gt_list_{}_human.pkl'.format(exp_name)
+gpt_path = 'log_vis/gpt_cm/res_list_{}_human.pkl'.format(exp_name)
+use_random = True
+
+with open(gt_path, "rb") as f:
+    gt_list = pkl.load(f)
+
+with open(gpt_path, "rb") as f:
+    gpt_res_list = pkl.load(f)
+
 
 with open(jessica_pkl, "rb") as f:
     jessica_data = pkl.load(f)
+
+random_ans = {}
+
+if use_random:
+    for key in gt_list.keys():
+        random_ans[key] = np.random.choice(["a", "b", "c", "d"])
+    gpt_res_list = random_ans
+
 jessica_data_id = list(jessica_data.keys())
 jessica_res_list = []
 gpt_res_list_p = []
 gt_list_p = []
 for each_id in jessica_data_id:
     jessica_res_list.append(jessica_data[each_id].lower())
+    assert int(each_id) in gpt_res_list.keys()
+    assert int(each_id) in gt_list.keys()
     gpt_res_list_p.append(gpt_res_list[int(each_id)])
     gt_list_p.append(gt_list[int(each_id)])
 # convert strings into ints

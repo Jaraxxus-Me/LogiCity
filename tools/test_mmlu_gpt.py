@@ -39,7 +39,7 @@ def main():
     parser.add_argument('--human_test_pkl', type=str, default='vis_dataset/mmlu_logicity_human/hard_test/all_answered.pkl', help='the split to evaluate')
     parser.add_argument('--split', type=str, default='test', help='the split to evaluate')
     parser.add_argument('--shots', type=int, default=5, help='the number of shots')
-    parser.add_argument('--exp', type=str, default='gpt-4o', help='exp name')
+    parser.add_argument('--exp', type=str, default='gpt-4o-mini3', help='exp name')
     parser.add_argument('--good_prompt', action='store_true', help='whether to use good prompt')
     parser.add_argument('--start', type=int, default=0, help='start index')
     parser.add_argument('--end', type=int, default=-1, help='end index')
@@ -113,12 +113,17 @@ def main():
             with open(args.human_test_pkl, "rb") as f:
                 human_test_data = pkl.load(f)
         final_test_set = {}
+        human_test_data_keys = list(human_test_data.keys())
+        random.shuffle(human_test_data_keys)  # Shuffle the keys to randomize the selection
         for i, each_data in enumerate(test_set):
             if human_test_data:
-                if str(i) not in human_test_data.keys():
+                if str(i) not in human_test_data_keys:
                     # this is not used by human
                     continue
             final_test_set[i] = each_data
+            # debug
+            # if len(final_test_set) >= 2:
+            #     break
         # test_set = test_set[args.start:args.end]
         logger.info(f"Number of test questions: {len(final_test_set)}")
 
@@ -130,7 +135,7 @@ def main():
 
         s = time.time()
         for data_id, each_question in final_test_set.items():
-            prompt_instruct = "Now try your best to first identify the FOL rules from the examples above and then answer the following question. Your answer should strictly end with the format of single letter: \'Answer: _.\'\n"
+            prompt_instruct = "Now try your best to first identify the FOL rules from the examples above and then answer the following question, please **stick to the context above** instead of using your understanding of the semantics/meaning of the predicates. Do not display your reasoning, your answer should **strictly end with the format of single letter**: \'Answer: _.\'\n"
             question_string = each_question["question"]
             prompt_question = "Question: " + question_string  + "\n"
             prompt_question += "Answer:"
@@ -138,7 +143,7 @@ def main():
             logger.info(f"prompt_demo: {prompt_demo}")
             logger.info(f"prompt_instruct: {prompt_instruct}")
             logger.info(f"prompt_question: {prompt_question}")
-            logger.info("{} (time_elapsed: {}), current acc: {}".format(data_id, time.time()-s, np.mean(score_list)))
+            logger.info("{}/{} (time_elapsed: {}), current acc: {}".format(all_counter, len(final_test_set), time.time()-s, np.mean(score_list)))
             # if (i+1) % 800 == 0:
             #     logger.info("Saving the results...")
             #     np.save("log_vis/gpt/gt_list_{}_{}_{}.npy".format(args.exp, args.start, i+args.start), gt_list)
@@ -150,11 +155,11 @@ def main():
             call_gpt_flag = True
             while call_gpt_flag:
                 try:
-                    model_answer = call_gpt(args, client, final_input, llm_version="gpt-4o-mini", temperature=0)
+                    model_answer = call_gpt(args, client, final_input, llm_version="gpt-4o", temperature=0)
                     em, normalized_pred, normalized_gold = single_ans_em(model_answer, each_question["answer"])
                     if len(normalized_pred) == 1:
-                        gt_list[data_ids] = normalized_gold
-                        res_list[data_ids] = normalized_pred
+                        gt_list[data_id] = normalized_gold
+                        res_list[data_id] = normalized_pred
                         call_gpt_flag = False
                     else:
                         format_wrong_times += 1
@@ -180,12 +185,12 @@ def main():
         num_1 = np.sum(score_list == 1)
         logger.info(f"{each_subject} subject EM: {num_1}/{len(score_list)}={num_1/len(score_list)*100}%")
 
-    with open("log_vis/gpt/gt_list_{}_human.pkl".format(args.exp), "wb") as f:
+    with open("log_vis/gpt_cm/gt_list_{}_human.pkl".format(args.exp), "wb") as f:
         pkl.dump(gt_list, f)
-    with open("log_vis/gpt/res_list_{}_human.pkl".format(args.exp), "wb") as f:
+    with open("log_vis/gpt_cm/res_list_{}_human.pkl".format(args.exp), "wb") as f:
         pkl.dump(res_list, f)
 
-    np.save("log_vis/gpt/all_subject_score_list_{}_human.npy".format(args.exp), all_subject_score_list)
+    np.save("log_vis/gpt_cm/all_subject_score_list_{}_human.npy".format(args.exp), all_subject_score_list)
     logger.info("\n\n")
     logger.info("Finish the MMLU evaluation.")
     weighted_acc = np.mean(np.concatenate(all_subject_score_list))
