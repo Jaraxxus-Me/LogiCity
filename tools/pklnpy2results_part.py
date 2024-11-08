@@ -99,7 +99,7 @@ for i in range(4):
         continue
     choice_acc.append(correct / total)
     choice_num.append(total)
-    print(f"Jessica Choice {i}: {correct}/{total} = {correct/total*100:.2f}%")
+    print(f"Human Choice {i}: {correct}/{total} = {correct/total*100:.2f}%")
 
 # calculate the overall accuracy
 # choice_acc = [24.72, 24.81, 26.52, 24.88]
@@ -108,7 +108,7 @@ correct = 0
 for gt, res in zip(gt_list_p, jessica_res_list):
     if gt == res:
         correct += 1
-print(f"Jessica Overall: {correct}/{len(gt_list_p)} = {correct/len(gt_list_p)*100:.2f}%")
+print(f"Human Overall: {correct}/{len(gt_list_p)} = {correct/len(gt_list_p)*100:.2f}%")
 
 # calculate the weighted accuracy
 # factor = 0

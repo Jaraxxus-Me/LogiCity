@@ -24,7 +24,7 @@
   ```shell
   # requirements for logicity
   # using conda env
-  conda env create -f environment.yml
+  conda create -n logicity python=3.11.5
   conda activate logicity
   # pyastar, in the LogiCity folder
   mkdir src
@@ -76,80 +76,38 @@ bash scripts/sim/run_sim_expert.sh
   python3 tools/img2video.py vis demo.gif # change some file name if necessary
   ```
 
-## Safe Path Following (SPF)
+### Customize a City
+The configurations (abstractions) of a City is defined (for example, the easy demo) here: `config/tasks/sim/*.yaml`.
+```yaml
+simulation:
+  map_yaml_file: "config/maps/square_5x5.yaml"       # OpenAI Gym environment name
+  agent_yaml_file: "config/agents/easy/train.yaml" # Agents in the simulation
+  ontology_yaml_file: "config/rules/ontology_easy.yaml" # Ontology of the simulation
+  rule_type: "Z3"               # z3 rl will set the rl_agent with fixed number of other entities, return the groundings as obs, and return the rule reward
+  rule_yaml_file: "config/rules/sim/easy/easy_rule.yaml"                 # Whether to render the environment
+  rl: false
+  debug: false
+  use_multi: false
+  agent_region: 100
+```
+Things you might want to play with:
+- `agent_yaml_file` defines the agent configuration, you can arbitarily define your own configurations.
+- `rule_yaml_file` defines the FOL rules of the city. You can customize your own rule, but the naming should follow [z3](https://ericpony.github.io/z3py-tutorial/guide-examples.htm#:~:text=Satisfiability%20and%20Validity).
+- `ontology_yaml_file` defines the possible concepts in the city (used by the rules). You can also customize the *grounding* functions specified in the function fields.
+
+## Safe Path Following (SPF, master branch, Tab. 2 in paper)
 
 In the Safe Path Following (SPF) task: the controlled agent is a car, it has 4 action spaces, "Slow" "Fast" "Normal" and "Stop". We require a policy to navigate the ego agent to its goal with minimum trajectory cost.
-
-### Dataset
-Download the train/val/test episodes [here](https://drive.google.com/file/d/1ePLVlNH77VV25171yOSgku21tji9ISdG/view?usp=sharing)
-The folder structure should be like:
-
-```plaintext
-LogiCity/
-├── dataset/
-│   ├── easy/
-│   │   ├── test_100_episodes.pkl
-│   │   ├── val_40_episodes.pkl
-│   │   └── train_1ktraj.pkl
-│   ├── expert/
-│   │   ├── test_100_episodes.pkl
-│   │   ├── val_40_episodes.pkl
-│   │   └── train_1ktraj.pkl
-│   └── ...
-├── logicity/
-├── config/
-└── ...
+This is an RL wrapper using the simulation above. We have used [stable-baselines3](https://stable-baselines3.readthedocs.io/en/master/) coding format.
+```
+git checkout master
+pip install -v -e .
 ```
 
-### Pre-trained Models & Test
-All of the models displayed in Tab. 2 can be downloaded [here](https://drive.google.com/file/d/1gDMu4AlljMR1FeUh5ty1y7sO0KW5CV4d/view?usp=sharing).
-Structure them into:
-```plaintext
-LogiCity/
-├── checkpoints/
-│   ├── final_models/
-│   │   ├── spf_emp/
-│   │   │   ├── easy/
-│   │   │   │   ├── dqn.zip
-│   │   │   │   ├── nlmdqn.zip
-│   │   │   │   └── ...
-│   │   │   ├── expert/
-│   │   │   ├── hard/
-│   │   │   └── medium/
-├── logicity/
-├── config/
-└── ...
-```
+## Visual Action Prediction (VAP), Tab.3, 4, LLM experiments.
 
-To test them, an example command could be:
-```
-# this test NLM-DQN in expert mode
-python3 main.py --config config/tasks/Nav/expert/algo/nlmdqn_test.yaml --exp nlmdqn_expert_test \
-    --checkpoint_path checkpoints/final_models/spf_emp/expert/nlmdqn.zip --use_gym
-```
-
-The metrics for this taks are:
-- Traj Succ: If the agent gets to goal within 2x oracle steps without violating any rules
-- Decision Succ: Count only the traj w/ rule constraints
-- Reward: Action Cost * weight + Rule Violation
-
-The output will be at `log_rl/nlmdqn_expert_test.log`.
-
-### Train a New Model
-All the configurations for all the models are at `config/tasks/Nav`.
-We provide two examples to train models:
-```
-# Training GNN-Behaviro Cloning Agent in easy mode
-python3 main.py --config config/tasks/Nav/easy/algo/gnnbc.yaml --exp gnnbc_easy_train --use_gym
-# Training DQN Agent in easy mode
-python3 main.py --config config/tasks/Nav/easy/algo/dqn.yaml --exp gnnbc_easy_train --use_gym
-```
-The checkpoints will be saved in `checkpoints`. By default, the validation episodes are used and the results are saved also in `checkpoints`.
-
-## Visual Action Prediction (VAP)
-
-In the Visual Action Prediction (VAP) task: the algorithm is required to predict actions for all the agents in an RGB Image.
-The code for VAP is in `vis` branch:
+In the Visual Action Prediction (VAP) task: the algorithm is required to predict actions for all the agents in an RGB Image (Or language discription).
+The code and instuctions for VAP is in `vis` branch:
 ```
 git checkout vis
 pip install -v -e .
@@ -231,3 +189,24 @@ scripts/vis/easy/train_nlm.sh
 scripts/vis/easy/train_gnn.sh
 ```
 The checkpoints will be saved in `vis_input_weights`.
+
+### Testing LLMs and Human
+1. Convert VAP dataset to [MMLU](https://crfm.stanford.edu/helm/mmlu/latest/) format
+  You can skip this part if you are using our default dataset, the converted QA pairs can be downloaded [here](), put `mmlu_logicity` and `mmlu_logicity_human` under folder `vis_dataset`.
+  With your customized VAP dataset, run the program (change some variables):
+  ```
+  tools/vispkl2mmlu.py
+  ```
+2. Test OpenAI LLMs:
+  ```
+  tools/test_mmlu_gpt.py
+  ```
+  Note that we have used the human test and train QA pairs. The Raw results over 3 random seeds for Tab.3 can be downloaded [here]().
+3. Get the results
+  ```
+  tools/pklnpy2results_part.py
+  ```
+To test a human, we also provided the tools to generate documents with specified concepts:
+```
+tools/get_human_data.py
+```
