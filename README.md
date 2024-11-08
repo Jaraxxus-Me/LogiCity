@@ -192,7 +192,7 @@ The checkpoints will be saved in `vis_input_weights`.
 
 ### Testing LLMs and Human
 1. Convert VAP dataset to [MMLU](https://crfm.stanford.edu/helm/mmlu/latest/) format
-  You can skip this part if you are using our default dataset, the converted QA pairs can be downloaded [here](), put `mmlu_logicity` and `mmlu_logicity_human` under folder `vis_dataset`.
+  You can skip this part if you are using our default dataset, the converted QA pairs can be downloaded [here](https://drive.google.com/file/d/1FtsFdC8e5qoYqvDBLZld1hNItvSKEyi9/view?usp=drive_link), put `mmlu_logicity` and `mmlu_logicity_human` under folder `vis_dataset`.
   With your customized VAP dataset, run the program (change some variables):
   ```
   tools/vispkl2mmlu.py
@@ -201,9 +201,11 @@ The checkpoints will be saved in `vis_input_weights`.
   ```
   tools/test_mmlu_gpt.py
   ```
-  Note that we have used the human test and train QA pairs. The Raw results over 3 random seeds for Tab.3 can be downloaded [here]().
+  Note that we have used the human test and train QA pairs. The Raw results over 3 random seeds for Tab.3 can be downloaded [here](https://drive.google.com/file/d/1HBrmw6T-pbquBgZLp3UuWC_HY7kDt7Jb/view?usp=drive_link).
+  unzip them into a folder named `log_vis`.
 3. Get the results
   ```
+  # change the input npy file name
   tools/pklnpy2results_part.py
   ```
 To test a human, we also provided the tools to generate documents with specified concepts:
