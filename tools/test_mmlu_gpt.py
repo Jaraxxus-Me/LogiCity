@@ -18,6 +18,7 @@ from openai import OpenAI
 random.seed(0)
 
 def call_gpt(args, client, prompt, llm_version, temperature):
+    logging.info("Calling GPT {}...".format(llm_version))
     new_message = [
         {"role": "system", "content": prompt[0]},
         {"role": "system", "content": prompt[1]},
@@ -39,14 +40,14 @@ def main():
     parser.add_argument('--human_test_pkl', type=str, default='vis_dataset/mmlu_logicity_human/hard_test/all_answered.pkl', help='the split to evaluate')
     parser.add_argument('--split', type=str, default='test', help='the split to evaluate')
     parser.add_argument('--shots', type=int, default=5, help='the number of shots')
-    parser.add_argument('--exp', type=str, default='gpt-4o-mini3', help='exp name')
+    parser.add_argument('--exp', type=str, default='gpt-3.5-turbo-1106_2', help='exp name')
     parser.add_argument('--good_prompt', action='store_true', help='whether to use good prompt')
     parser.add_argument('--start', type=int, default=0, help='start index')
     parser.add_argument('--end', type=int, default=-1, help='end index')
     args = parser.parse_args()
 
     client = OpenAI(
-    api_key='sk-BjKEtLx2h0v0Z93EV2Myju-oijzTN9DOBZDQj4Ep5rT3BlbkFJ_voUis6vY08PtIoB-scZRDgfyLJQNLh7kN5CNt23wA',  # this is also the default, it can be omitted
+    api_key='',  # this is also the default, it can be omitted
     )
     # Setting up the logger
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -140,22 +141,17 @@ def main():
             prompt_question = "Question: " + question_string  + "\n"
             prompt_question += "Answer:"
             final_input = [prompt_demo, prompt_instruct, prompt_question]
-            logger.info(f"prompt_demo: {prompt_demo}")
-            logger.info(f"prompt_instruct: {prompt_instruct}")
-            logger.info(f"prompt_question: {prompt_question}")
+            # logger.info(f"prompt_demo: {prompt_demo}")
+            # logger.info(f"prompt_instruct: {prompt_instruct}")
+            # logger.info(f"prompt_question: {prompt_question}")
             logger.info("{}/{} (time_elapsed: {}), current acc: {}".format(all_counter, len(final_test_set), time.time()-s, np.mean(score_list)))
-            # if (i+1) % 800 == 0:
-            #     logger.info("Saving the results...")
-            #     np.save("log_vis/gpt/gt_list_{}_{}_{}.npy".format(args.exp, args.start, i+args.start), gt_list)
-            #     np.save("log_vis/gpt/res_list_{}_{}_{}.npy".format(args.exp, args.start, i+args.start), res_list)
-            #     np.save("log_vis/gpt/all_subject_score_list_{}_{}_{}.npy".format(args.exp, args.start, i+args.start), all_subject_score_list)
-            #     logger.info("Results saved.")
 
             format_wrong_times = 0
             call_gpt_flag = True
             while call_gpt_flag:
                 try:
-                    model_answer = call_gpt(args, client, final_input, llm_version="gpt-4o", temperature=0)
+                    llm_version = args.exp.split('_')[0]
+                    model_answer = call_gpt(args, client, final_input, llm_version=llm_version, temperature=0)
                     em, normalized_pred, normalized_gold = single_ans_em(model_answer, each_question["answer"])
                     if len(normalized_pred) == 1:
                         gt_list[data_id] = normalized_gold

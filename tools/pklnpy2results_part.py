@@ -3,10 +3,10 @@ import pickle as pkl
 import os
 
 jessica_pkl = 'vis_dataset/mmlu_logicity_human/hard_test/all_answered.pkl'
-exp_name = 'gpt-4o-mini'
+exp_name = 'gpt-3.5-turbo-1106_2'
 gt_path = 'log_vis/gpt_cm/gt_list_{}_human.pkl'.format(exp_name)
 gpt_path = 'log_vis/gpt_cm/res_list_{}_human.pkl'.format(exp_name)
-use_random = True
+use_random = False
 
 with open(gt_path, "rb") as f:
     gt_list = pkl.load(f)

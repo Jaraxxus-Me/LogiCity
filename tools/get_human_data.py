@@ -6,8 +6,8 @@ from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 from docx.enum.text import WD_COLOR_INDEX
 
-csv_path = 'vis_dataset/mmlu_logicity_jessica/hard/test/hard_fixed_final_mmlu.csv'  # Update with the actual path to the CSV file
-label_json_path = 'vis_dataset/mmlu_logicity_jessica/hard/test/hard_fixed_final_mmlu_label.json'  # Update with the actual path to the JSON file
+csv_path = 'vis_dataset/mmlu_logicity_human/hard/test/hard_fixed_final_mmlu.csv'  # Update with the actual path to the CSV file
+label_json_path = 'vis_dataset/mmlu_logicity_human/hard/test/hard_fixed_final_mmlu_label.json'  # Update with the actual path to the JSON file
 
 def add_formatted_text(paragraph, text, color=None, bold=False):
     """
