@@ -215,3 +215,18 @@ To test a human, we also provided the tools to generate documents with specified
 ```
 tools/get_human_data.py
 ```
+
+## Reference
+
+If our work inspires your research, please cite us as:
+
+```
+@INPROCEEDINGS{Li2023logicity,     
+  title={{LogiCity: Advancing Neuro-Symbolic AI with Abstract Urban Simulation}},
+  author={Li, Bowen and Li, Zhaoyu and Du, Qiwei and Luo, Jinqi and Wang, Wenshan and Xie, Yaqi and Stepputtis, Simon and Wang, Chen and Sycara, Katia P and Ravikumar, Pradeep Kumar and Gray, Alex and Si, Xujie and Scherer, Sebastian}, 
+	booktitle={Proceedings of the Advances in Neural Information Processing Systems (NeurIPS)}, 
+	year={2024},
+	volume={},
+	number={}
+}
+```
