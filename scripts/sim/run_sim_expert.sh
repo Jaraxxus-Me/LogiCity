@@ -1,4 +1,4 @@
-source /opt/conda/etc/profile.d/conda.sh
+# source /opt/conda/etc/profile.d/conda.sh
 conda activate logicity
 EXPNAME="expert_100"
 MAXSETP=100
